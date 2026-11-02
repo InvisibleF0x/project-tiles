@@ -4,6 +4,8 @@ The Project Tiles dashboard for PhpStorm and every other IntelliJ-based IDE (202
 It shows the same page as the VS Code extension and reads and writes the same project list, so a
 change made in one editor appears in the other.
 
+![Project Tiles in a JetBrains IDE](../docs/images/jetbrains.png)
+
 ## Where it shows up
 
 - **Editor tab**: *Tools | Project Tiles | Open Dashboard*, or the tiles icon on the side bar.
