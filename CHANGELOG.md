@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 — 2026-11-02
+
+- Sponsor link: the *Sponsor* button in VS Code and a link in the JetBrains plugin description point to GitHub Sponsors.
+
 ## 1.0.0 — 2026-11-02
 
 First public release, for VS Code and its forks (Positron, Cursor, Antigravity, VSCodium) and for

@@ -12,9 +12,12 @@ A lightweight tile dashboard for your projects, in its own editor tab and on the
   <li>One project list shared with the Project Tiles extension for VS Code and its forks</li>
 </ul>
 <p>No telemetry. The only network traffic is <code>git fetch</code> in your own repositories, which can be turned off.</p>
+<p>Free and open source: <a href="https://github.com/InvisibleF0x/project-tiles">source code</a>.
+If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x">support it through GitHub Sponsors</a>.</p>
 ]]></description>
     <change-notes><![CDATA[
-<p>First public release.</p>
+<p>1.0.1: link to GitHub Sponsors.</p>
+<p>1.0.0: first public release.</p>
 ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>

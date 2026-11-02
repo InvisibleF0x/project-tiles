@@ -95,6 +95,11 @@ The JetBrains plugin lives in [`jetbrains/`](jetbrains/README.md) and reuses `me
 - `media` – dashboard page (also used by the JetBrains plugin)
 - `shared` – UI strings and the language table, used by both editions
 
+## Support
+
+Project Tiles is free and open source. If it saves you time, you can
+[buy me a coffee through GitHub Sponsors](https://github.com/sponsors/InvisibleF0x).
+
 ## License
 
 [MIT](LICENSE) © Dominik Mech

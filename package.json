@@ -2,7 +2,7 @@
   "name": "project-tiles",
   "displayName": "Project Tiles",
   "description": "%ext.description%",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "dominikmech",
   "author": "Dominik Mech",
   "license": "MIT",
@@ -14,6 +14,9 @@
     "url": "https://github.com/InvisibleF0x/project-tiles/issues"
   },
   "homepage": "https://github.com/InvisibleF0x/project-tiles#readme",
+  "sponsor": {
+    "url": "https://github.com/sponsors/InvisibleF0x"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
