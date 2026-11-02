@@ -1,0 +1,237 @@
+{
+  "name": "project-tiles",
+  "displayName": "Project Tiles",
+  "description": "%ext.description%",
+  "version": "1.0.0",
+  "publisher": "dominikmech",
+  "author": "Dominik Mech",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/InvisibleF0x/project-tiles.git"
+  },
+  "bugs": {
+    "url": "https://github.com/InvisibleF0x/project-tiles/issues"
+  },
+  "homepage": "https://github.com/InvisibleF0x/project-tiles#readme",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "project manager",
+    "projects",
+    "dashboard",
+    "tiles",
+    "recent projects",
+    "workspace",
+    "git"
+  ],
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1f2a3a",
+    "theme": "dark"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "projectTiles.open",
+        "title": "%cmd.open%",
+        "category": "Project Tiles",
+        "icon": "$(layout-panel)"
+      },
+      {
+        "command": "projectTiles.addCurrentFolder",
+        "title": "%cmd.addCurrentFolder%",
+        "category": "Project Tiles",
+        "icon": "$(add)"
+      },
+      {
+        "command": "projectTiles.addFolder",
+        "title": "%cmd.addFolder%",
+        "category": "Project Tiles"
+      },
+      {
+        "command": "projectTiles.refresh",
+        "title": "%cmd.refresh%",
+        "category": "Project Tiles",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "projectTiles.openDataFile",
+        "title": "%cmd.openDataFile%",
+        "category": "Project Tiles"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "projectTiles",
+          "title": "Project Tiles",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "projectTiles": [
+        {
+          "id": "projectTiles.sidebar",
+          "name": "%view.sidebar%",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "projectTiles.sidebar",
+        "contents": "%view.welcome%"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "projectTiles.open",
+          "when": "view == projectTiles.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectTiles.addCurrentFolder",
+          "when": "view == projectTiles.sidebar",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "projectTiles.addCurrentFolder",
+          "when": "activeWebviewPanelId == projectTiles.dashboard",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectTiles.refresh",
+          "when": "activeWebviewPanelId == projectTiles.dashboard",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Project Tiles",
+      "properties": {
+        "projectTiles.openInNewWindow": {
+          "type": "boolean",
+          "default": false,
+          "description": "%cfg.openInNewWindow%"
+        },
+        "projectTiles.showOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "%cfg.showOnStartup%"
+        },
+        "projectTiles.columns": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 6,
+          "description": "%cfg.columns%"
+        },
+        "projectTiles.tileSize": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "compact"
+          ],
+          "default": "normal",
+          "description": "%cfg.tileSize%"
+        },
+        "projectTiles.fetchRemote": {
+          "type": "boolean",
+          "default": true,
+          "description": "%cfg.fetchRemote%"
+        },
+        "projectTiles.metadataCacheMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "description": "%cfg.metadataCacheMinutes%"
+        },
+        "projectTiles.languageCacheHours": {
+          "type": "number",
+          "default": 12,
+          "minimum": 0,
+          "description": "%cfg.languageCacheHours%"
+        },
+        "projectTiles.maxFilesScanned": {
+          "type": "number",
+          "default": 15000,
+          "minimum": 100,
+          "description": "%cfg.maxFilesScanned%"
+        },
+        "projectTiles.languageIgnoreDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".git",
+            ".svn",
+            ".hg",
+            "node_modules",
+            "bower_components",
+            "vendor",
+            "Library",
+            "Temp",
+            "Logs",
+            "UserSettings",
+            "obj",
+            "bin",
+            "build",
+            "Build",
+            "Builds",
+            "dist",
+            "out",
+            "target",
+            ".idea",
+            ".vs",
+            ".vscode",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "env",
+            ".next",
+            ".nuxt",
+            "coverage",
+            ".gradle",
+            "Pods",
+            "DerivedData",
+            ".dart_tool",
+            ".cache",
+            ".godot",
+            ".import"
+          ],
+          "description": "%cfg.languageIgnoreDirs%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \"out/test/**/*.test.js\"",
+    "package": "npm run typecheck && npm run test && npm run build && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2",
+    "ovsx": "^1.3.0",
+    "typescript": "^5.6.0"
+  }
+}

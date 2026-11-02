@@ -1,0 +1,15 @@
+.vscode/**
+.github/**
+.idea/**
+.gitignore
+src/**
+test/**
+docs/**
+shared/**
+jetbrains/**
+out/**
+node_modules/**
+esbuild.mjs
+tsconfig*.json
+*.vsix
+media/icon.svg

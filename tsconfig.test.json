@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false
+  },
+  "include": ["src/domain", "src/services/languages", "src/services/git/parse.ts", "src/storage/SharedDataLocation.ts", "test"]
+}

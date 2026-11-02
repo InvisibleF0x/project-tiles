@@ -1,0 +1,50 @@
+<idea-plugin>
+    <id>dominikmech.projecttiles</id>
+    <name>Project Tiles</name>
+    <vendor url="https://github.com/InvisibleF0x/project-tiles">Dominik Mech</vendor>
+    <description><![CDATA[
+A lightweight tile dashboard for your projects, in its own editor tab and on the welcome screen.
+<ul>
+  <li>Tiles with name, description and logo (emoji, image file, or an auto-detected <code>logo.png</code> / <code>icon.png</code>)</li>
+  <li>Collections with colours; drag &amp; drop to reorder projects and collections</li>
+  <li>Git branch, last commit and an ahead/behind badge per repository</li>
+  <li>Languages like on GitHub (weighted by bytes), with a manual override</li>
+  <li>One project list shared with the Project Tiles extension for VS Code and its forks</li>
+</ul>
+<p>No telemetry. The only network traffic is <code>git fetch</code> in your own repositories, which can be turned off.</p>
+]]></description>
+    <change-notes><![CDATA[
+<p>First public release.</p>
+]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="projectTiles-terminal.xml">org.jetbrains.plugins.terminal</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileEditorProvider implementation="dominikmech.projecttiles.ui.DashboardEditorProvider"/>
+        <toolWindow id="Project Tiles" anchor="left" secondary="true" icon="/icons/toolWindow.svg"
+                    factoryClass="dominikmech.projecttiles.ui.ProjectTilesToolWindowFactory"/>
+        <welcomeTabFactory implementation="dominikmech.projecttiles.ui.ProjectTilesWelcomeTabFactory" order="first"/>
+        <applicationConfigurable parentId="tools" id="dominikmech.projecttiles.settings" displayName="Project Tiles"
+                                 instance="dominikmech.projecttiles.settings.ProjectTilesConfigurable"/>
+    </extensions>
+
+    <projectListeners>
+        <listener class="dominikmech.projecttiles.ui.ProjectTilesToolWindowListener"
+                  topic="com.intellij.openapi.wm.ex.ToolWindowManagerListener"/>
+    </projectListeners>
+
+    <actions>
+        <group id="dominikmech.projecttiles.ToolsGroup" text="Project Tiles" popup="true" icon="/icons/projectTiles.svg">
+            <add-to-group group-id="ToolsMenu" anchor="first"/>
+            <action id="dominikmech.projecttiles.Open" class="dominikmech.projecttiles.actions.OpenDashboardAction"
+                    text="Open Dashboard" description="Open the Project Tiles dashboard tab" icon="/icons/projectTiles.svg"/>
+            <action id="dominikmech.projecttiles.AddCurrent" class="dominikmech.projecttiles.actions.AddCurrentProjectAction"
+                    text="Add Current Project" description="Add the open project to the dashboard"/>
+            <action id="dominikmech.projecttiles.Refresh" class="dominikmech.projecttiles.actions.RefreshAction"
+                    text="Refresh Git &amp; Language Info" description="Force a metadata refresh"/>
+            <action id="dominikmech.projecttiles.OpenDataFile" class="dominikmech.projecttiles.actions.OpenDataFileAction"
+                    text="Open Data File (projects.json)" description="Open the shared catalog for manual editing or backup"/>
+        </group>
+    </actions>
+</idea-plugin>

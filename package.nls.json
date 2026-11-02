@@ -1,0 +1,19 @@
+{
+  "ext.description": "A tile dashboard for your projects: descriptions, logos, collections, git branch, last commit and languages.",
+  "cmd.open": "Open Dashboard",
+  "cmd.addCurrentFolder": "Add Current Folder as Project",
+  "cmd.addFolder": "Add Folder as Project…",
+  "cmd.refresh": "Refresh Git & Language Info",
+  "cmd.openDataFile": "Open Data File (projects.json)",
+  "view.sidebar": "Projects",
+  "view.welcome": "The dashboard opens in its own editor tab.\n[Open Dashboard](command:projectTiles.open)\n[Add Current Folder](command:projectTiles.addCurrentFolder)",
+  "cfg.openInNewWindow": "Open projects in a new window by default (Ctrl+click does the opposite).",
+  "cfg.showOnStartup": "Open the dashboard automatically when a window starts without a folder.",
+  "cfg.tileSize": "Tile size on the dashboard.",
+  "cfg.columns": "Preferred number of tile columns. Fewer are used automatically when the window is too narrow.",
+  "cfg.fetchRemote": "Run `git fetch` before computing ahead/behind so tiles show commits not yet pulled. Uses the network; when off, the badge is grey and compares against the last local fetch.",
+  "cfg.metadataCacheMinutes": "Minimum interval (minutes) between remote checks when the dashboard is reopened. 0 = check every time it opens.",
+  "cfg.languageCacheHours": "How long (hours) a language scan is reused before the project is scanned again. 0 = rescan on every refresh.",
+  "cfg.maxFilesScanned": "Maximum number of files scanned per project for language detection.",
+  "cfg.languageIgnoreDirs": "Directory names skipped during language detection."
+}

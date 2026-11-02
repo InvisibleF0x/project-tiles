@@ -1,0 +1,3 @@
+<idea-plugin>
+    <!-- Present only so the Terminal plugin's classes are visible to TerminalLauncher when that plugin is installed. -->
+</idea-plugin>

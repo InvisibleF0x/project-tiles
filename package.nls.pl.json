@@ -1,0 +1,19 @@
+{
+  "ext.description": "Kafelkowy pulpit projektów: opisy, loga, kolekcje, branch gita, ostatni commit i języki.",
+  "cmd.open": "Otwórz pulpit projektów",
+  "cmd.addCurrentFolder": "Dodaj bieżący folder jako projekt",
+  "cmd.addFolder": "Dodaj folder jako projekt…",
+  "cmd.refresh": "Odśwież informacje git i języki",
+  "cmd.openDataFile": "Otwórz plik danych (projects.json)",
+  "view.sidebar": "Projekty",
+  "view.welcome": "Pulpit otwiera się we własnej zakładce edytora.\n[Otwórz pulpit](command:projectTiles.open)\n[Dodaj bieżący folder](command:projectTiles.addCurrentFolder)",
+  "cfg.openInNewWindow": "Domyślnie otwieraj projekty w nowym oknie (Ctrl+klik robi odwrotnie).",
+  "cfg.showOnStartup": "Otwieraj pulpit automatycznie, gdy okno startuje bez folderu.",
+  "cfg.tileSize": "Rozmiar kafelków na pulpicie.",
+  "cfg.columns": "Preferowana liczba kolumn kafelków. Przy wąskim oknie automatycznie jest ich mniej.",
+  "cfg.fetchRemote": "Uruchamiaj `git fetch` przed liczeniem ahead/behind, aby kafelki pokazywały commity jeszcze niepobrane. Korzysta z sieci; gdy wyłączone, znacznik jest szary i porównuje z ostatnim lokalnym fetchem.",
+  "cfg.metadataCacheMinutes": "Minimalny odstęp (minuty) między sprawdzeniami remote przy ponownym otwarciu pulpitu. 0 = sprawdzaj przy każdym otwarciu.",
+  "cfg.languageCacheHours": "Ile godzin wynik skanu języków jest używany ponownie, zanim projekt zostanie przeskanowany jeszcze raz. 0 = skanuj przy każdym odświeżeniu.",
+  "cfg.maxFilesScanned": "Maksymalna liczba plików skanowanych w projekcie przy wykrywaniu języków.",
+  "cfg.languageIgnoreDirs": "Nazwy katalogów pomijane przy wykrywaniu języków."
+}

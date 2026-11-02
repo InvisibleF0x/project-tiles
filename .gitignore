@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist/
+*.vsix
+.idea/
+jetbrains/.gradle/
+jetbrains/.intellijPlatform/
+jetbrains/.kotlin/
+jetbrains/build/
