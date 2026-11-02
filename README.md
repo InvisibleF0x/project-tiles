@@ -1,5 +1,12 @@
 # Project Tiles
 
+[![Latest release](https://img.shields.io/github/v/release/InvisibleF0x/project-tiles?label=release)](https://github.com/InvisibleF0x/project-tiles/releases/latest)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=dominikmech.project-tiles)
+[![Open VSX](https://img.shields.io/open-vsx/v/dominikmech/project-tiles?label=Open%20VSX)](https://open-vsx.org/extension/dominikmech/project-tiles)
+[![CI](https://img.shields.io/github/actions/workflow/status/InvisibleF0x/project-tiles/ci.yml?branch=main&label=CI)](https://github.com/InvisibleF0x/project-tiles/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/InvisibleF0x/project-tiles)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors)](https://github.com/sponsors/InvisibleF0x)
+
 A lightweight tile dashboard for your projects, in its own editor tab. Available for VS Code and its forks
 (Positron, Cursor, Antigravity, VSCodium) and for JetBrains IDEs (PhpStorm, IntelliJ IDEA, WebStorm, …),
 all sharing one project list.
