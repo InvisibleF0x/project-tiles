@@ -2,7 +2,7 @@
   "name": "project-tiles",
   "displayName": "Project Tiles",
   "description": "%ext.description%",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "dominikmech",
   "author": "Dominik Mech",
   "license": "MIT",

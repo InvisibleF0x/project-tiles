@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2 — 2026-11-04
+
+- JetBrains: the dashboard did not open in 2026.2 IDEs (the embedded browser moved to a separate bundled plugin).
+
 ## 1.0.1 — 2026-11-02
 
 - Sponsor link: the *Sponsor* button in VS Code and a link in the JetBrains plugin description point to GitHub Sponsors.

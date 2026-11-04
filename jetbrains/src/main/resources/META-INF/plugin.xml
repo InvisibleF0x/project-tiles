@@ -16,11 +16,13 @@ A lightweight tile dashboard for your projects, in its own editor tab and on the
 If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x">support it through GitHub Sponsors</a>.</p>
 ]]></description>
     <change-notes><![CDATA[
+<p>1.0.2: fixes the dashboard not opening in 2026.2 IDEs.</p>
 <p>1.0.1: link to GitHub Sponsors.</p>
 <p>1.0.0: first public release.</p>
 ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="projectTiles-jcef.xml">com.intellij.modules.jcef</depends>
     <depends optional="true" config-file="projectTiles-terminal.xml">org.jetbrains.plugins.terminal</depends>
 
     <extensions defaultExtensionNs="com.intellij">

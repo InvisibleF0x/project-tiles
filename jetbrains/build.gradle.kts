@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "dominikmech"
-version = "1.0.1"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
@@ -71,13 +71,26 @@ val sharedResources = tasks.register<Sync>("sharedResources") {
     into(layout.buildDirectory.dir("generated/sharedResources"))
 }
 
-// `gradlew runIde -PopenProject=<dir> -PappData=<dir>`: open a project, against a throwaway data folder.
-tasks.named<RunIdeTask>("runIde") {
+// `gradlew runIde|runIdeLatest -PopenProject=<dir> -PappData=<dir>`: open a project in the oldest or newest
+// supported IDE, against a throwaway data folder.
+fun RunIdeTask.devOptions() {
     providers.gradleProperty("openProject").orNull?.let {
         args(it)
         systemProperty("idea.trust.all.projects", "true")
     }
     providers.gradleProperty("appData").orNull?.let { environment("APPDATA", it) }
+}
+
+tasks.named<RunIdeTask>("runIde") { devOptions() }
+
+intellijPlatformTesting {
+    runIde {
+        register("runIdeLatest") {
+            type = IntelliJPlatformType.IntellijIdea
+            version = "2026.2.4"
+            task { devOptions() }
+        }
+    }
 }
 
 sourceSets {

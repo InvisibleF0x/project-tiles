@@ -34,7 +34,9 @@ Requires JDK 21.
 ./gradlew buildPlugin    # build/distributions/project-tiles-jetbrains-<version>.zip
 ./gradlew verifyPlugin   # Plugin Verifier against the oldest and newest supported PhpStorm
 ./gradlew runIde -PopenProject=<dir> -PappData=<scratch dir>
+./gradlew runIdeLatest -PopenProject=<dir> -PappData=<scratch dir>
 ```
 
-`runIde` starts IntelliJ IDEA Community 2025.2 with the plugin. `-PopenProject` opens that project, and
-`-PappData` points the shared data folder at a throwaway location instead of your real list.
+`runIde` starts the oldest supported IDE (IntelliJ IDEA Community 2025.2) with the plugin, `runIdeLatest` the
+newest (IntelliJ IDEA 2026.2). `-PopenProject` opens that project, and `-PappData` points the shared data folder
+at a throwaway location instead of your real list.

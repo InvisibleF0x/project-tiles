@@ -1,0 +1,3 @@
+<idea-plugin>
+    <!-- From 2026.2 JCEF ships as a bundled plugin; older IDEs have it in the core and lack this plugin id. -->
+</idea-plugin>
