@@ -2,7 +2,7 @@
   "name": "project-tiles",
   "displayName": "Project Tiles",
   "description": "%ext.description%",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "publisher": "dominikmech",
   "author": "Dominik Mech",
   "license": "MIT",
@@ -58,6 +58,11 @@
       {
         "command": "projectTiles.addFolder",
         "title": "%cmd.addFolder%",
+        "category": "Project Tiles"
+      },
+      {
+        "command": "projectTiles.addRecent",
+        "title": "%cmd.addRecent%",
         "category": "Project Tiles"
       },
       {
@@ -150,6 +155,21 @@
           ],
           "default": "normal",
           "description": "%cfg.tileSize%"
+        },
+        "projectTiles.showPath": {
+          "type": "boolean",
+          "default": true,
+          "description": "%cfg.showPath%"
+        },
+        "projectTiles.showLanguages": {
+          "type": "boolean",
+          "default": true,
+          "description": "%cfg.showLanguages%"
+        },
+        "projectTiles.showGit": {
+          "type": "boolean",
+          "default": true,
+          "description": "%cfg.showGit%"
         },
         "projectTiles.fetchRemote": {
           "type": "boolean",

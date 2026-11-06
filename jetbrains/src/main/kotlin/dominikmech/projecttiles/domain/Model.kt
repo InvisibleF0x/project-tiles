@@ -86,13 +86,21 @@ data class GitInfo(val branch: String, val commit: CommitInfo? = null, val sync:
 
 data class LanguageShare(val name: String, val color: String, val percent: Double)
 
+/** Why a project folder cannot be reached: its drive is not connected, or it was deleted or moved. */
+object Unavailable {
+    const val OFFLINE = "offline"
+    const val DELETED = "deleted"
+}
+
 data class ProjectMetadata(
     val exists: Boolean,
+    /** [Unavailable] reason when [exists] is false. An offline project keeps its last known git and language info. */
+    val availability: String? = null,
     /** Null when the folder is not a git repository. */
     val git: GitInfo?,
     val languages: List<LanguageShare>,
     val autoLogoPath: String? = null,
-    /** When the git part was last refreshed (epoch ms). */
+    /** When the local part (git state, auto logo) was last refreshed (epoch ms). */
     val fetchedAt: Long = 0,
     /** When the language scan was last run (0 = never). */
     val languagesAt: Long = 0,

@@ -14,7 +14,17 @@ export interface GitInfoProvider {
   getQuickInfo(folder: string): Promise<GitInfo | null>;
   /** Runs `git fetch` and recounts ahead/behind. Slow (network). `undefined` when the branch has no upstream. */
   fetchAndCount(folder: string): Promise<SyncInfo | undefined>;
+  /** A fetch, pull or push the user asked for; `error` is git's own message when it fails. */
+  runRemote(folder: string, op: RemoteOperation): Promise<{ ok: boolean; error: string }>;
 }
+
+export type RemoteOperation = 'fetch' | 'pull' | 'push';
+
+const REMOTE_ARGS: Record<RemoteOperation, string[]> = {
+  fetch: ['fetch', '--quiet'],
+  pull: ['pull', '--ff-only', '--quiet'],
+  push: ['push', '--quiet'],
+};
 
 export interface CliGitOptions {
   fetchRemote: () => boolean;
@@ -31,6 +41,8 @@ export interface CliGitOptions {
  *  - `core.hooksPath` pointed at an empty location disables repo hooks for our calls.
  */
 const GIT_BASE_ARGS = ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-c', 'core.quotepath=off'];
+
+const REMOTE_TIMEOUT_MS = 120_000;
 
 /**
  * Reads git state with the `git` CLI. The branch comes straight from
@@ -73,6 +85,18 @@ export class CliGitInfoProvider implements GitInfoProvider {
   async fetchAndCount(folder: string): Promise<SyncInfo | undefined> {
     const fetched = (await this.git(folder, ['fetch', '--quiet', '--no-tags'], this.fetchTimeoutMs)) !== undefined;
     return this.count(folder, fetched);
+  }
+
+  /** Runs like the user's own git: their hooks apply (e.g. pre-push), only the fsmonitor hook stays off. */
+  runRemote(folder: string, op: RemoteOperation): Promise<{ ok: boolean; error: string }> {
+    return new Promise((resolve) => {
+      execFile(
+        'git',
+        ['-c', 'core.fsmonitor=false', '-c', 'core.quotepath=off', ...REMOTE_ARGS[op]],
+        { cwd: folder, timeout: REMOTE_TIMEOUT_MS, windowsHide: true, encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
+        (error, _stdout, stderr) => resolve({ ok: !error, error: error ? (stderr.trim() || error.message) : '' }),
+      );
+    });
   }
 
   private async count(folder: string, fetched: boolean): Promise<SyncInfo | undefined> {

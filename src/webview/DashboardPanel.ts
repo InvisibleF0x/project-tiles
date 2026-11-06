@@ -4,13 +4,8 @@ import { Project, ProjectMetadata } from '../domain/model';
 import { Strings } from '../i18n';
 import { GitWatcher } from '../services/git/GitWatcher';
 import { ProjectService } from '../services/ProjectService';
-import { DashboardState, HostToWebview, ProjectView, WebviewToHost } from './protocol';
-
-export interface DashboardSettings {
-  openInNewWindow: boolean;
-  tileSize: 'normal' | 'compact';
-  columns: number;
-}
+import { RemoteOperation } from '../services/git/GitInfoProvider';
+import { DashboardSettings, DashboardState, HostToWebview, ProjectView, WebviewToHost } from './protocol';
 
 export interface DashboardDependencies {
   readonly extensionUri: vscode.Uri;
@@ -151,7 +146,7 @@ export class DashboardPanel implements vscode.Disposable {
       }
       return view;
     });
-    const state: DashboardState = { collections: [...service.collections], projects, meta, settings: settings(), strings };
+    const state: DashboardState = { collections: [...service.collections], projects, meta, settings: settings(), canAddCurrent: current !== undefined, strings };
     if (this.pendingEdit) {
       state.editing = this.pendingEdit;
       if (this.pendingDraft) {
@@ -278,6 +273,29 @@ export class DashboardPanel implements vscode.Disposable {
       case 'addCurrent':
         await vscode.commands.executeCommand('projectTiles.addCurrentFolder');
         return;
+      case 'addRecent':
+        await vscode.commands.executeCommand('projectTiles.addRecent');
+        return;
+      case 'git': {
+        const project = service.getProject(message.id);
+        if (project && isRemoteOperation(message.op)) {
+          await this.runGit(project, message.op);
+        }
+        return;
+      }
+    }
+  }
+
+  private async runGit(project: Project, op: RemoteOperation): Promise<void> {
+    const { strings, service } = this.deps;
+    try {
+      const result = await service.metadata.runRemote(project, op, (p, meta) => this.post(this.metaMessage(p, meta)));
+      if (!result.ok) {
+        const text = strings.gitFailed.replace('{op}', op).replace('{project}', project.name).replace('{error}', result.error);
+        void vscode.window.showErrorMessage(text);
+      }
+    } finally {
+      this.post({ type: 'gitDone', id: project.id, op });
     }
   }
 
@@ -317,6 +335,10 @@ function isMessage(m: unknown): m is WebviewToHost {
   }
   const id = (m as { id?: unknown }).id;
   return id === undefined || typeof id === 'string';
+}
+
+function isRemoteOperation(op: unknown): op is RemoteOperation {
+  return op === 'fetch' || op === 'pull' || op === 'push';
 }
 
 function normalize(p: string): string {

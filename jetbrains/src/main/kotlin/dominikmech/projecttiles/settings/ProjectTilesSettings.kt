@@ -11,6 +11,9 @@ class ProjectTilesState : BaseState() {
     var openInNewWindow by property(false)
     var columns by property(3)
     var tileSize by string("normal")
+    var showPath by property(true)
+    var showLanguages by property(true)
+    var showGit by property(true)
     var fetchRemote by property(true)
     var metadataCacheMinutes by property(10)
     var languageCacheHours by property(12)
@@ -24,6 +27,9 @@ class ProjectTilesSettings : SimplePersistentStateComponent<ProjectTilesState>(P
     val openInNewWindow get() = state.openInNewWindow
     val columns get() = state.columns.coerceIn(1, 6)
     val tileSize get() = if (state.tileSize == "compact") "compact" else "normal"
+    val showPath get() = state.showPath
+    val showLanguages get() = state.showLanguages
+    val showGit get() = state.showGit
     val fetchRemote get() = state.fetchRemote
     val gitTtlMs get() = state.metadataCacheMinutes.coerceAtLeast(0) * 60_000L
     val languagesTtlMs get() = state.languageCacheHours.coerceAtLeast(0) * 3_600_000L

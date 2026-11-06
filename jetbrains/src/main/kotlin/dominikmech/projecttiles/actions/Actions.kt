@@ -8,6 +8,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import dominikmech.projecttiles.services.ProjectService
 import dominikmech.projecttiles.ui.DashboardOpener
 import dominikmech.projecttiles.ui.DashboardView
+import dominikmech.projecttiles.ui.RecentProjectsImport
 
 /** Base for actions that need a project window (the dashboard tab lives in one). */
 abstract class ProjectAction : DumbAwareAction() {
@@ -27,6 +28,14 @@ class OpenDashboardAction : ProjectAction() {
 class AddCurrentProjectAction : ProjectAction() {
     override fun actionPerformed(e: AnActionEvent) {
         DashboardOpener.getInstance(e.project ?: return).open()?.addCurrent()
+    }
+}
+
+class AddRecentProjectsAction : DumbAwareAction() {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+
+    override fun actionPerformed(e: AnActionEvent) {
+        RecentProjectsImport.run(e.project)
     }
 }
 

@@ -37,7 +37,12 @@ class ProjectService(val scope: CoroutineScope) {
             { LanguageDetector(settings.ignoreDirs, settings.maxFilesScanned) },
             logos,
             MetadataCacheStore(Path.of(PathManager.getSystemPath(), "project-tiles", "metadata-cache.json")),
-            MetadataOptions(gitTtlMs = { settings.gitTtlMs }, languagesTtlMs = { settings.languagesTtlMs }),
+            MetadataOptions(
+                gitTtlMs = { settings.gitTtlMs },
+                languagesTtlMs = { settings.languagesTtlMs },
+                gitEnabled = { settings.showGit },
+                languagesEnabled = { settings.showLanguages },
+            ),
         )
     }
 

@@ -7,7 +7,9 @@ A lightweight tile dashboard for your projects, in its own editor tab and on the
 <ul>
   <li>Tiles with name, description and logo (emoji, image file, or an auto-detected <code>logo.png</code> / <code>icon.png</code>)</li>
   <li>Collections with colours; drag &amp; drop to reorder projects and collections</li>
-  <li>Git branch, last commit and an ahead/behind badge per repository</li>
+  <li>Git branch, last commit, an ahead/behind badge and fetch / pull / push buttons per repository</li>
+  <li>Add several projects at once from the IDE's recent-projects list</li>
+  <li>Projects on a disconnected drive are greyed out; deleted folders are flagged</li>
   <li>Languages like on GitHub (weighted by bytes), with a manual override</li>
   <li>One project list shared with the Project Tiles extension for VS Code and its forks</li>
 </ul>
@@ -16,6 +18,9 @@ A lightweight tile dashboard for your projects, in its own editor tab and on the
 If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x">support it through GitHub Sponsors</a>.</p>
 ]]></description>
     <change-notes><![CDATA[
+<p>1.1.0: fetch / pull / push buttons on tiles; add several recent projects at once; projects on a disconnected
+drive are greyed out and deleted folders are flagged; options to hide the path, languages or git status;
+smaller buttons; "Add current folder" no longer shows on the welcome screen.</p>
 <p>1.0.2: fixes the dashboard not opening in 2026.2 IDEs.</p>
 <p>1.0.1: link to GitHub Sponsors.</p>
 <p>1.0.0: first public release.</p>
@@ -30,6 +35,7 @@ If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x"
         <toolWindow id="Project Tiles" anchor="left" secondary="true" icon="/icons/toolWindow.svg"
                     factoryClass="dominikmech.projecttiles.ui.ProjectTilesToolWindowFactory"/>
         <welcomeTabFactory implementation="dominikmech.projecttiles.ui.ProjectTilesWelcomeTabFactory" order="first"/>
+        <notificationGroup id="Project Tiles" displayType="BALLOON"/>
         <applicationConfigurable parentId="tools" id="dominikmech.projecttiles.settings" displayName="Project Tiles"
                                  instance="dominikmech.projecttiles.settings.ProjectTilesConfigurable"/>
     </extensions>
@@ -46,6 +52,8 @@ If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x"
                     text="Open Dashboard" description="Open the Project Tiles dashboard tab" icon="/icons/projectTiles.svg"/>
             <action id="dominikmech.projecttiles.AddCurrent" class="dominikmech.projecttiles.actions.AddCurrentProjectAction"
                     text="Add Current Project" description="Add the open project to the dashboard"/>
+            <action id="dominikmech.projecttiles.AddRecent" class="dominikmech.projecttiles.actions.AddRecentProjectsAction"
+                    text="Add Recent Projects…" description="Add projects from the IDE's recent-projects list"/>
             <action id="dominikmech.projecttiles.Refresh" class="dominikmech.projecttiles.actions.RefreshAction"
                     text="Refresh Git &amp; Language Info" description="Force a metadata refresh"/>
             <action id="dominikmech.projecttiles.OpenDataFile" class="dominikmech.projecttiles.actions.OpenDataFileAction"

@@ -124,13 +124,18 @@ export interface LanguageShare {
   percent: number;
 }
 
+/** Why a project folder cannot be reached: its drive is not connected, or it was deleted or moved. */
+export type Unavailable = 'offline' | 'deleted';
+
 export interface ProjectMetadata {
   exists: boolean;
+  /** Set when `exists` is false. An offline project keeps its last known git and language info. */
+  availability?: Unavailable;
   /** `null` when the folder is not a git repository. */
   git: GitInfo | null;
   languages: LanguageShare[];
   autoLogoPath?: string;
-  /** When the git part was last refreshed. */
+  /** When the local part (git state, auto logo) was last refreshed. */
   fetchedAt: number;
   /** When the language scan was last run (0 = never). */
   languagesAt: number;

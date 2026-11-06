@@ -19,6 +19,16 @@ private const val LOG_FORMAT = "%h%x1f%s%x1f%cr%x1f%an"
  *  - `core.fsmonitor=false` ignores a repository-level fsmonitor hook a malicious repo config could use to run a program;
  *  - `core.hooksPath` pointed at an empty location disables repo hooks for our calls.
  */
+private const val REMOTE_TIMEOUT_MS = 120_000
+
+private val REMOTE_ARGS = mapOf(
+    "fetch" to listOf("fetch", "--quiet"),
+    "pull" to listOf("pull", "--ff-only", "--quiet"),
+    "push" to listOf("push", "--quiet"),
+)
+
+data class RemoteResult(val ok: Boolean, val error: String)
+
 private val BASE_ARGS = listOf("--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "core.quotepath=off")
 
 /**
@@ -40,6 +50,28 @@ class GitInfoProvider(private val fetchRemote: () -> Boolean, private val timeou
     fun fetchAndCount(folder: Path): SyncInfo? {
         val fetched = if (fetchEnabled()) git(folder, "fetch", "--quiet", "--no-tags", timeout = fetchTimeoutMs) != null else false
         return count(folder, fetched)
+    }
+
+    /**
+     * A fetch, pull (fast-forward only) or push the user asked for. Runs like the user's own git: their
+     * hooks apply (e.g. pre-push), only the fsmonitor hook stays off. Returns git's message on failure.
+     */
+    fun runRemote(folder: Path, op: String): RemoteResult {
+        val args = REMOTE_ARGS[op] ?: return RemoteResult(false, "unknown operation $op")
+        return try {
+            val command = GeneralCommandLine(listOf("git", "-c", "core.fsmonitor=false", "-c", "core.quotepath=off") + args)
+                .withWorkingDirectory(folder)
+                .withCharset(StandardCharsets.UTF_8)
+                .withEnvironment("GIT_TERMINAL_PROMPT", "0")
+            val output = CapturingProcessHandler(command).runProcess(REMOTE_TIMEOUT_MS)
+            when {
+                output.isTimeout -> RemoteResult(false, "timed out")
+                output.exitCode != 0 -> RemoteResult(false, output.stderr.trim().ifEmpty { "exit code ${output.exitCode}" })
+                else -> RemoteResult(true, "")
+            }
+        } catch (e: Exception) {
+            RemoteResult(false, e.message ?: e.toString())
+        }
     }
 
     private fun count(folder: Path, fetched: Boolean): SyncInfo? {

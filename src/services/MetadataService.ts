@@ -1,9 +1,9 @@
-import { promises as fs } from 'node:fs';
 import { Project, ProjectMetadata } from '../domain/model';
 import { MetadataCacheStore } from '../storage/MetadataCacheStore';
-import { GitInfoProvider } from './git/GitInfoProvider';
+import { GitInfoProvider, RemoteOperation } from './git/GitInfoProvider';
 import { LanguageDetector, sharesFromNames } from './languages/LanguageDetector';
 import { LogoStore } from './logo/LogoStore';
+import { unavailability } from './PathState';
 
 export interface MetadataServiceOptions {
   /** Git info older than this is refreshed when the dashboard opens. */
@@ -16,6 +16,10 @@ export interface MetadataServiceOptions {
   fetchConcurrency?: number;
   /** Language scans (disk + CPU) running concurrently. */
   scanConcurrency?: number;
+  /** False when tiles do not show git info: no git process is started at all. */
+  gitEnabled?: () => boolean;
+  /** False when tiles do not show languages: nothing is scanned. */
+  languagesEnabled?: () => boolean;
 }
 
 export interface RefreshOptions {
@@ -106,20 +110,22 @@ export class MetadataService {
     const now = Date.now();
     const gitTtl = this.options.gitTtlMs();
     const langTtl = this.options.languagesTtlMs();
+    const gitEnabled = this.options.gitEnabled?.() ?? true;
+    const languagesEnabled = this.options.languagesEnabled?.() ?? true;
 
     const plan = projects
       .filter((p) => !this.inFlight.has(p.path))
-      .map((p) => {
+      .map((p): Task => {
         const cached = this.cache.get(p.path);
-        const manual = (p.languages ?? []).length > 0;
-        const git = options.force || !cached || now - cached.fetchedAt > gitTtl;
-        const languages = !options.gitOnly && (options.force || !cached || now - cached.languagesAt > langTtl);
+        const due = options.force === true || !cached || now - cached.fetchedAt > gitTtl;
+        const manual = languagesEnabled && (p.languages ?? []).length > 0;
+        const languages = languagesEnabled && !options.gitOnly && (options.force || !cached || now - cached.languagesAt > langTtl);
         // Looked for again together with the git part, not on every open; a cached path outside
         // the store (which the webview could not load) is rediscovered right away.
-        const logo = p.logo?.kind === 'auto' && (git || (cached?.autoLogoPath !== undefined && !this.logos.contains(cached.autoLogoPath)));
-        return { project: p, git, languages, manual, logo, network: options.network === true };
+        const logo = p.logo?.kind === 'auto' && (due || (cached?.autoLogoPath !== undefined && !this.logos.contains(cached.autoLogoPath)));
+        return { project: p, due, git: due && gitEnabled, languages, manual, logo, network: options.network === true };
       })
-      .filter((t) => t.git || t.languages || t.logo);
+      .filter((t) => t.due || t.languages || t.logo);
     if (plan.length === 0) {
       return;
     }
@@ -146,22 +152,29 @@ export class MetadataService {
     const meta: ProjectMetadata = previous
       ? { ...previous }
       : { exists: true, git: null, languages: [], fetchedAt: 0, languagesAt: 0 };
-    meta.exists = await isProjectPath(project.path);
-    if (!meta.exists) {
-      meta.git = null;
-      meta.languages = [];
+    const unavailable = await unavailability(project.path);
+    meta.exists = unavailable === undefined;
+    if (unavailable) {
+      meta.availability = unavailable;
+      if (unavailable === 'deleted') {
+        meta.git = null;
+        meta.languages = [];
+      }
       this.cache.set(project.path, meta);
       onResult(project, meta);
       t.git = t.languages = t.logo = false;
       return;
     }
+    delete meta.availability;
     const [git, autoLogo] = await Promise.all([
       t.git ? this.git.getQuickInfo(project.path).catch(() => null) : Promise.resolve(meta.git),
       t.logo ? this.logos.discover(project.id, project.path).catch(() => undefined) : Promise.resolve(meta.autoLogoPath),
     ]);
+    if (t.due) {
+      meta.fetchedAt = Date.now();
+    }
     if (t.git) {
       meta.git = git;
-      meta.fetchedAt = Date.now();
       if (t.network && git?.sync && this.git.fetchEnabled()) {
         git.sync.checking = true;
       } else {
@@ -226,6 +239,30 @@ export class MetadataService {
     onResult(project, meta);
   }
 
+  /** A fetch, pull or push the user asked for, then a recount against the freshly updated remote refs. */
+  async runRemote(project: Project, op: RemoteOperation, onResult: MetadataListener): Promise<{ ok: boolean; error: string }> {
+    await this.ensureLoaded();
+    this.fetching.add(project.path);
+    let result: { ok: boolean; error: string };
+    try {
+      result = await this.git.runRemote(project.path, op);
+    } finally {
+      this.fetching.delete(project.path);
+      this.quietUntil.set(project.path, Date.now() + SELF_CHANGE_GRACE_MS);
+    }
+    const git = await this.git.getQuickInfo(project.path).catch(() => null);
+    const previous = this.cache.get(project.path);
+    const before = previous?.git?.sync;
+    if (git?.sync) {
+      git.sync.fetched = result.ok || (before?.upstream === git.sync.upstream && before.fetched);
+    }
+    const meta: ProjectMetadata = { ...(previous ?? { exists: true, languages: [], languagesAt: 0 }), git, fetchedAt: Date.now() };
+    this.cache.set(project.path, meta);
+    this.persist();
+    onResult(project, meta);
+    return result;
+  }
+
   private persist(): void {
     this.store?.scheduleSave(this.cache);
   }
@@ -233,6 +270,8 @@ export class MetadataService {
 
 interface Task {
   project: Project;
+  /** The local part (git state, auto logo) is older than its TTL. */
+  due: boolean;
   git: boolean;
   languages: boolean;
   manual: boolean;
@@ -248,13 +287,4 @@ async function runPool<T>(items: T[], limit: number, work: (item: T) => Promise<
     }
   };
   await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
-}
-
-async function isProjectPath(p: string): Promise<boolean> {
-  try {
-    const stat = await fs.stat(p);
-    return stat.isDirectory() || p.toLowerCase().endsWith('.code-workspace');
-  } catch {
-    return false;
-  }
 }

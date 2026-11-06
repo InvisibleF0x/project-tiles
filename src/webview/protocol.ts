@@ -1,5 +1,6 @@
 import { Collection, Logo, Project, ProjectMetadata } from '../domain/model';
 import { Strings } from '../i18n';
+import { RemoteOperation } from '../services/git/GitInfoProvider';
 
 /** Project as sent to the webview: logo already resolved to something the browser can render. */
 export interface ProjectView extends Omit<Project, 'logo'> {
@@ -9,11 +10,22 @@ export interface ProjectView extends Omit<Project, 'logo'> {
   isCurrent: boolean;
 }
 
+export interface DashboardSettings {
+  openInNewWindow: boolean;
+  tileSize: 'normal' | 'compact';
+  columns: number;
+  showPath: boolean;
+  showLanguages: boolean;
+  showGit: boolean;
+}
+
 export interface DashboardState {
   collections: Collection[];
   projects: ProjectView[];
   meta: Record<string, ProjectMetadata>;
-  settings: { openInNewWindow: boolean; tileSize: 'normal' | 'compact'; columns: number };
+  settings: DashboardSettings;
+  /** False when no folder or project is open here (e.g. on a welcome screen). */
+  canAddCurrent: boolean;
   strings: Strings;
   /** Id of the project whose editor should be open, or 'new' for a fresh one. */
   editing?: string;
@@ -26,7 +38,8 @@ export type HostToWebview =
   | { type: 'meta'; id: string; meta: ProjectMetadata; logoUri?: string }
   | { type: 'busy'; busy: boolean }
   | { type: 'logoPicked'; id: string; fileName: string; logoUri: string }
-  | { type: 'folderPicked'; path: string; name: string };
+  | { type: 'folderPicked'; path: string; name: string }
+  | { type: 'gitDone'; id: string; op: RemoteOperation };
 
 export interface ProjectPatch {
   name: string;
@@ -53,4 +66,6 @@ export type WebviewToHost =
   | { type: 'pickLogo'; id: string | undefined }
   | { type: 'pickFolder' }
   | { type: 'refresh'; id?: string }
-  | { type: 'addCurrent' };
+  | { type: 'addCurrent' }
+  | { type: 'addRecent' }
+  | { type: 'git'; id: string; op: RemoteOperation };

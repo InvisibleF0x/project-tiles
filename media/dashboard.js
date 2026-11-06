@@ -13,6 +13,8 @@
   let busy = false;
   /** @type {{kind:'project', id:string} | {kind:'collection', id:string} | undefined} */
   let drag;
+  /** Git operation running per project id; kept across re-renders until the host reports it done. */
+  const gitBusy = new Map();
 
   const SWATCHES = ['#e5534b', '#f0883e', '#d4a72c', '#57ab5a', '#39c5cf', '#539bf5', '#986ee2', '#c96198', '#8b949e'];
 
@@ -35,6 +37,10 @@
     up: '<svg class="i s" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></svg>',
     down: '<svg class="i s" viewBox="0 0 16 16"><path d="M8 3v10M4 9l4 4 4-4"/></svg>',
     grip: '<svg class="i s" viewBox="0 0 16 16"><path d="M5 4h.01M5 8h.01M5 12h.01M11 4h.01M11 8h.01M11 12h.01" stroke-width="2.4"/></svg>',
+    fetch: '<svg class="i s" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2v3h-3"/></svg>',
+    recent: '<svg class="i" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>',
+    warning: '<svg class="i s" viewBox="0 0 16 16"><path d="M8 2 1.5 13.5h13zM8 6.5v3.5M8 12h.01"/></svg>',
+    offline: '<svg class="i s" viewBox="0 0 16 16"><rect x="2" y="9" width="12" height="4.5" rx="1"/><path d="M4.5 9 6 3h4l1.5 6M2 2l12 12"/></svg>',
   };
 
   const h = (/** @type {string} */ tag, /** @type {Record<string, any>} */ attrs = {}, /** @type {(Node|string|null|undefined)[]} */ children = []) => {
@@ -81,13 +87,15 @@
 
   function renderHeader() {
     const s = S();
+    const { canAddCurrent } = /** @type {NonNullable<typeof state>} */ (state);
     return h('div', { class: 'header' }, [
       h('h1', {}, [s.title]),
       h('div', { class: 'search', html: ICONS.search }, [
         h('input', { type: 'search', placeholder: s.search, value: filter, oninput: (e) => { filter = e.target.value; vscode.setState({ filter }); render(); } }),
       ]),
       h('div', { class: 'spacer' }),
-      h('button', { html: ICONS.plus + s.addCurrent, onclick: () => post({ type: 'addCurrent' }) }),
+      canAddCurrent ? h('button', { html: ICONS.plus + s.addCurrent, onclick: () => post({ type: 'addCurrent' }) }) : null,
+      h('button', { class: canAddCurrent ? 'secondary' : '', html: ICONS.recent + s.addRecent, onclick: () => post({ type: 'addRecent' }) }),
       h('button', { class: 'secondary', html: ICONS.folder + s.addFolder, onclick: () => openProjectEditor(undefined, {}) }),
       h('button', { class: 'secondary', html: ICONS.plus + s.newCollection, onclick: () => openCollectionEditor(undefined) }),
       h('button', { class: 'icon refresh-btn' + (busy ? ' busy' : ''), title: busy ? s.refreshing : s.refresh, html: ICONS.refresh, onclick: () => post({ type: 'refresh' }) }),
@@ -172,7 +180,7 @@
     const tileColor = p.color || (collection && collection.color) || '';
     const meta = st.meta[p.id];
     const tile = h('div', {
-      class: 'tile' + (p.isCurrent ? ' current' : '') + (meta && !meta.exists ? ' missing' : ''),
+      class: 'tile' + (p.isCurrent ? ' current' : ''),
       'data-id': p.id,
       'data-current': s.current,
       tabindex: '0',
@@ -186,7 +194,10 @@
     }, [
       h('div', { class: 'tile-top' }, [
         renderLogo(p),
-        h('div', { class: 'tile-title' }, [h('div', { class: 'name' }, [p.name]), h('div', { class: 'path' }, ['‎' + p.path])]),
+        h('div', { class: 'tile-title' }, [
+          h('div', { class: 'name' }, [p.name]),
+          st.settings.showPath ? h('div', { class: 'path' }, ['‎' + p.path]) : null,
+        ]),
       ]),
       p.description ? h('div', { class: 'desc' }, [p.description]) : null,
       h('div', { class: 'meta' }),
@@ -194,6 +205,7 @@
         footerBtn('here', s.openCurrentWindow, () => post({ type: 'open', id: p.id, newWindow: false })),
         footerBtn('window', s.openNewWindow, () => post({ type: 'open', id: p.id, newWindow: true })),
         footerBtn('terminal', s.terminal, () => post({ type: 'terminal', id: p.id })),
+        h('div', { class: 'git-actions' }),
       ]),
       h('div', { class: 'tile-actions' }, [
         iconBtn('reveal', s.reveal, () => post({ type: 'reveal', id: p.id })),
@@ -229,21 +241,73 @@
     return words.slice(0, LOGO_TEXT_MAX).map((w) => clampGraphemes(w, 1)).join('').toUpperCase();
   }
 
-  /** Fills the languages + git block of a tile from metadata (or a loading placeholder). */
+  /** Fills the languages + git block and the git buttons of a tile from metadata (or a loading placeholder). */
   function patchMeta(tile, p, meta) {
     const s = S();
+    const { settings } = /** @type {NonNullable<typeof state>} */ (state);
     const box = tile.querySelector('.meta');
     if (!box) return;
-    if (!meta) { box.replaceChildren(h('div', { class: 'git muted loading', html: ICONS.spinner + `<span>${escapeHtml(s.loading)}</span>` })); return; }
-    if (!meta.exists) { box.replaceChildren(h('div', { class: 'git muted' }, [s.missing])); return; }
+    const unavailable = meta && !meta.exists ? (meta.availability || 'deleted') : '';
+    tile.classList.toggle('offline', unavailable === 'offline');
+    tile.classList.toggle('deleted', unavailable === 'deleted');
+    patchGitActions(tile, p, unavailable ? undefined : meta);
     const parts = [];
-    if (meta.languages.length) {
-      parts.push(h('div', { class: 'langbar' }, meta.languages.map((l) => h('span', { style: `width:${l.percent}%;background:${l.color}`, title: `${l.name} ${l.percent}%` }))));
-      parts.push(h('div', { class: 'langs' }, meta.languages.slice(0, 4).map((l) =>
-        h('span', {}, [h('i', { style: `background:${l.color}` }), h('b', {}, [l.name]), p.languages && p.languages.length ? '' : ` ${l.percent}%`]))));
-    } else {
-      parts.push(h('div', { class: 'langs' }, [h('span', {}, [s.noLanguages])]));
+    if (unavailable === 'offline') {
+      parts.push(h('div', { class: 'availability offline', title: s.driveOfflineHint, html: ICONS.offline + `<span>${escapeHtml(s.driveOffline)}</span>` }));
+    } else if (unavailable === 'deleted') {
+      box.replaceChildren(h('div', { class: 'availability deleted', title: s.folderDeletedHint, html: ICONS.warning + `<span>${escapeHtml(s.folderDeleted)}</span>` }));
+      return;
     }
+    if (!meta) {
+      if (settings.showLanguages || settings.showGit) box.replaceChildren(h('div', { class: 'git muted loading', html: ICONS.spinner + `<span>${escapeHtml(s.loading)}</span>` }));
+      else box.replaceChildren();
+      return;
+    }
+    const offline = unavailable === 'offline';
+    if (settings.showLanguages && (!offline || meta.languages.length)) parts.push(...renderLanguages(p, meta));
+    if (settings.showGit && (!offline || meta.git)) parts.push(renderGit(meta));
+    box.replaceChildren(...parts);
+  }
+
+  function renderLanguages(p, meta) {
+    const s = S();
+    if (!meta.languages.length) return [h('div', { class: 'langs' }, [h('span', {}, [s.noLanguages])])];
+    return [
+      h('div', { class: 'langbar' }, meta.languages.map((l) => h('span', { style: `width:${l.percent}%;background:${l.color}`, title: `${l.name} ${l.percent}%` }))),
+      h('div', { class: 'langs' }, meta.languages.slice(0, 4).map((l) =>
+        h('span', {}, [h('i', { style: `background:${l.color}` }), h('b', {}, [l.name]), p.languages && p.languages.length ? '' : ` ${l.percent}%`]))),
+    ];
+  }
+
+  /** Fetch / pull / push for repositories with an upstream; the running one spins until the host is done. */
+  function patchGitActions(tile, p, meta) {
+    const s = S();
+    const group = tile.querySelector('.git-actions');
+    if (!group) return;
+    const sync = state && state.settings.showGit && meta && meta.git && meta.git.sync;
+    if (!sync) { group.replaceChildren(); return; }
+    const running = gitBusy.get(p.id);
+    const button = (op, icon, title, count) => h('button', {
+      class: 'icon git-op' + (count ? ' pending' : ''),
+      title: count ? `${title} (${count})` : title,
+      disabled: running !== undefined,
+      html: (running === op ? ICONS.spinner : ICONS[icon]) + (count ? `<span>${count}</span>` : ''),
+      onclick: (e) => {
+        e.stopPropagation();
+        gitBusy.set(p.id, op);
+        patchGitActions(tile, p, meta);
+        post({ type: 'git', id: p.id, op });
+      },
+    });
+    group.replaceChildren(
+      button('fetch', 'fetch', s.fetch, 0),
+      button('pull', 'down', s.pull, sync.behind),
+      button('push', 'up', s.push, sync.ahead),
+    );
+  }
+
+  function renderGit(meta) {
+    const s = S();
     if (meta.git) {
       const rows = [h('div', { class: 'row' }, [h('span', { html: ICONS.branch }), h('span', { class: 'branch' }, [meta.git.branch]), renderSync(meta.git.sync)])];
       if (meta.git.commit) {
@@ -252,11 +316,9 @@
           h('span', { html: ICONS.commit }), h('span', { class: 'hash' }, [c.hash]), h('span', { class: 'subject' }, [c.subject]), h('span', { class: 'when' }, [c.relativeDate]),
         ]));
       }
-      parts.push(h('div', { class: 'git' }, rows));
-    } else {
-      parts.push(h('div', { class: 'git muted' }, [s.notGit]));
+      return h('div', { class: 'git' }, rows);
     }
-    box.replaceChildren(...parts);
+    return h('div', { class: 'git muted' }, [s.notGit]);
   }
 
   /** Ahead/behind badge next to the branch name; nothing when the branch has no upstream. */
@@ -471,7 +533,6 @@
         const tile = app.querySelector(`.tile[data-id="${msg.id}"]`);
         if (tile) {
           patchMeta(tile, p, msg.meta);
-          tile.classList.toggle('missing', !msg.meta.exists);
           if (msg.logoUri) { const old = tile.querySelector('.logo'); if (old) old.replaceWith(renderLogo(p)); }
         }
         break;
@@ -488,6 +549,13 @@
       case 'folderPicked':
         if (pendingFolderHandler) pendingFolderHandler(msg);
         break;
+      case 'gitDone': {
+        gitBusy.delete(msg.id);
+        const p = state && state.projects.find((x) => x.id === msg.id);
+        const tile = app.querySelector(`.tile[data-id="${msg.id}"]`);
+        if (p && tile) patchGitActions(tile, p, state.meta[msg.id]);
+        break;
+      }
     }
   });
 

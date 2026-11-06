@@ -3,8 +3,8 @@ package dominikmech.projecttiles.services
 import dominikmech.projecttiles.domain.Logo
 import dominikmech.projecttiles.domain.Project
 import dominikmech.projecttiles.domain.ProjectMetadata
+import dominikmech.projecttiles.domain.Unavailable
 import dominikmech.projecttiles.storage.MetadataCacheStore
-import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +20,10 @@ class MetadataOptions(
     val gitTtlMs: () -> Long,
     /** Language scans are expensive; they are reused for this long. */
     val languagesTtlMs: () -> Long,
+    /** False when tiles do not show git info: no git process is started at all. */
+    val gitEnabled: () -> Boolean = { true },
+    /** False when tiles do not show languages: nothing is scanned. */
+    val languagesEnabled: () -> Boolean = { true },
     val quickConcurrency: Int = 8,
     /** `git fetch` calls wait on the network, not the CPU. */
     val fetchConcurrency: Int = 8,
@@ -77,21 +81,24 @@ class MetadataService(
     fun isSelfChange(projectPath: String): Boolean =
         projectPath in fetching || (quietUntil[projectPath] ?: 0) > System.currentTimeMillis()
 
-    private class Task(val project: Project, var git: Boolean, var languages: Boolean, val manual: Boolean, var logo: Boolean, val network: Boolean)
+    /** [due]: the local part (git state, auto logo) is older than its TTL. */
+    private class Task(val project: Project, val due: Boolean, var git: Boolean, var languages: Boolean, val manual: Boolean, var logo: Boolean, val network: Boolean)
 
     suspend fun refresh(projects: List<Project>, onResult: MetadataListener, opts: RefreshOptions = RefreshOptions()) = withContext(Dispatchers.IO) {
         ensureLoaded()
         val now = System.currentTimeMillis()
         val gitTtl = options.gitTtlMs()
         val langTtl = options.languagesTtlMs()
+        val gitEnabled = options.gitEnabled()
+        val languagesEnabled = options.languagesEnabled()
         val plan = projects.filter { it.path !in inFlight }.map { p ->
             val cached = cache[p.path]
-            val git = opts.force || cached == null || now - cached.fetchedAt > gitTtl
-            val languages = !opts.gitOnly && (opts.force || cached == null || now - cached.languagesAt > langTtl)
+            val due = opts.force || cached == null || now - cached.fetchedAt > gitTtl
+            val languages = languagesEnabled && !opts.gitOnly && (opts.force || cached == null || now - cached.languagesAt > langTtl)
             // Looked for again together with the git part, not on every open.
-            val logo = p.logo?.kind == Logo.AUTO && (git || (cached?.autoLogoPath != null && !logos.contains(cached.autoLogoPath)))
-            Task(p, git, languages, !p.languages.isNullOrEmpty(), logo, opts.network)
-        }.filter { it.git || it.languages || it.logo }
+            val logo = p.logo?.kind == Logo.AUTO && (due || (cached?.autoLogoPath != null && !logos.contains(cached.autoLogoPath)))
+            Task(p, due, due && gitEnabled, languages, languagesEnabled && !p.languages.isNullOrEmpty(), logo, opts.network)
+        }.filter { it.due || it.languages || it.logo }
         if (plan.isEmpty()) return@withContext
         plan.forEach { inFlight.add(it.project.path) }
         try {
@@ -112,8 +119,10 @@ class MetadataService(
         val folder = Path.of(project.path)
         val previous = cache[project.path]
         var meta = previous ?: ProjectMetadata(exists = true, git = null, languages = emptyList())
-        if (!isProjectPath(folder)) {
-            meta = meta.copy(exists = false, git = null, languages = emptyList())
+        val unavailable = unavailability(project.path)
+        if (unavailable != null) {
+            meta = meta.copy(exists = false, availability = unavailable)
+            if (unavailable == Unavailable.DELETED) meta = meta.copy(git = null, languages = emptyList())
             cache[project.path] = meta
             onResult(project, meta)
             t.git = false
@@ -121,7 +130,8 @@ class MetadataService(
             t.logo = false
             return
         }
-        meta = meta.copy(exists = true)
+        meta = meta.copy(exists = true, availability = null)
+        if (t.due) meta = meta.copy(fetchedAt = System.currentTimeMillis())
         if (t.git) {
             var git = runCatching { git.quickInfo(folder) }.getOrNull()
             val sync = git?.sync
@@ -135,7 +145,7 @@ class MetadataService(
                 }
                 t.git = false // nothing left to do in the slow phase
             }
-            meta = meta.copy(git = git, fetchedAt = System.currentTimeMillis())
+            meta = meta.copy(git = git)
         }
         if (t.manual) {
             meta = meta.copy(languages = LanguageDetector.sharesFromNames(project.languages.orEmpty()), languagesAt = System.currentTimeMillis())
@@ -176,6 +186,32 @@ class MetadataService(
         onResult(project, meta)
     }
 
+    /** A fetch, pull or push the user asked for, then a recount against the freshly updated remote refs. */
+    suspend fun runRemote(project: Project, op: String, onResult: MetadataListener): RemoteResult = withContext(Dispatchers.IO) {
+        ensureLoaded()
+        val folder = Path.of(project.path)
+        fetching.add(project.path)
+        val result = try {
+            git.runRemote(folder, op)
+        } finally {
+            fetching.remove(project.path)
+            quietUntil[project.path] = System.currentTimeMillis() + SELF_CHANGE_GRACE_MS
+        }
+        var info = runCatching { git.quickInfo(folder) }.getOrNull()
+        val previous = cache[project.path]
+        val before = previous?.git?.sync
+        info?.sync?.let { sync ->
+            val fetched = result.ok || (before != null && before.upstream == sync.upstream && before.fetched)
+            info = info!!.copy(sync = sync.copy(fetched = fetched))
+        }
+        val meta = (previous ?: ProjectMetadata(exists = true, git = null, languages = emptyList()))
+            .copy(git = info, fetchedAt = System.currentTimeMillis())
+        cache[project.path] = meta
+        persist()
+        onResult(project, meta)
+        result
+    }
+
     private fun persist() {
         store?.scheduleSave(cache)
     }
@@ -184,6 +220,4 @@ class MetadataService(
         val semaphore = Semaphore(limit.coerceAtLeast(1))
         items.map { item -> async(Dispatchers.IO) { semaphore.withPermit { work(item) } } }.awaitAll()
     }
-
-    private fun isProjectPath(p: Path): Boolean = Files.isDirectory(p) || (p.toString().lowercase().endsWith(".code-workspace") && Files.isRegularFile(p))
 }

@@ -6,7 +6,7 @@
   "cmd.refresh": "Refresh Git & Language Info",
   "cmd.openDataFile": "Open Data File (projects.json)",
   "view.sidebar": "Projects",
-  "view.welcome": "The dashboard opens in its own editor tab.\n[Open Dashboard](command:projectTiles.open)\n[Add Current Folder](command:projectTiles.addCurrentFolder)",
+  "view.welcome": "The dashboard opens in its own editor tab.\n[Open Dashboard](command:projectTiles.open)\n[Add Current Folder](command:projectTiles.addCurrentFolder)\n[Add Recent Projects](command:projectTiles.addRecent)",
   "cfg.openInNewWindow": "Open projects in a new window by default (Ctrl+click does the opposite).",
   "cfg.showOnStartup": "Open the dashboard automatically when a window starts without a folder.",
   "cfg.tileSize": "Tile size on the dashboard.",
@@ -15,5 +15,9 @@
   "cfg.metadataCacheMinutes": "Minimum interval (minutes) between remote checks when the dashboard is reopened. 0 = check every time it opens.",
   "cfg.languageCacheHours": "How long (hours) a language scan is reused before the project is scanned again. 0 = rescan on every refresh.",
   "cfg.maxFilesScanned": "Maximum number of files scanned per project for language detection.",
-  "cfg.languageIgnoreDirs": "Directory names skipped during language detection."
+  "cfg.languageIgnoreDirs": "Directory names skipped during language detection.",
+  "cmd.addRecent": "Add Recent Projects…",
+  "cfg.showPath": "Show the folder path on tiles.",
+  "cfg.showLanguages": "Show the language bar on tiles. When off, projects are not scanned for languages.",
+  "cfg.showGit": "Show git branch, last commit, ahead/behind and the fetch / pull / push buttons on tiles. When off, git is never run."
 }

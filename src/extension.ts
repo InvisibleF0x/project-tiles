@@ -38,6 +38,8 @@ export function activate(context: vscode.ExtensionContext): void {
     {
       gitTtlMs: () => config().get<number>('metadataCacheMinutes', 10) * 60_000,
       languagesTtlMs: () => config().get<number>('languageCacheHours', 12) * 3_600_000,
+      gitEnabled: () => config().get<boolean>('showGit', true),
+      languagesEnabled: () => config().get<boolean>('showLanguages', true),
     },
   );
   const service = new ProjectService(repository, logos, metadata);
@@ -50,6 +52,9 @@ export function activate(context: vscode.ExtensionContext): void {
       openInNewWindow: config().get<boolean>('openInNewWindow', false),
       tileSize: config().get<'normal' | 'compact'>('tileSize', 'normal'),
       columns: Math.min(6, Math.max(1, config().get<number>('columns', 3))),
+      showPath: config().get<boolean>('showPath', true),
+      showLanguages: config().get<boolean>('showLanguages', true),
+      showGit: config().get<boolean>('showGit', true),
     }),
     currentFolder,
   };
@@ -73,6 +78,25 @@ export function activate(context: vscode.ExtensionContext): void {
     DashboardPanel.show(deps, 'new', { name: path.basename(folder), path: folder, logo: { kind: 'auto' } });
   };
 
+  const addRecent = async (): Promise<void> => {
+    await service.ensureLoaded();
+    const candidates = (await recentFolders()).filter((folder) => !service.findByPath(folder));
+    if (candidates.length === 0) {
+      void vscode.window.showInformationMessage(deps.strings.addRecentNone);
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(
+      candidates.map((folder) => ({ label: path.basename(folder), description: folder, folder })),
+      { canPickMany: true, matchOnDescription: true, placeHolder: deps.strings.addRecentTitle },
+    );
+    for (const item of picked ?? []) {
+      await service.saveProject(service.newId(), { name: item.label, path: item.folder, logo: { kind: 'auto' } });
+    }
+    if (picked?.length) {
+      DashboardPanel.show(deps);
+    }
+  };
+
   // Activity-bar entry: an empty view (welcome content comes from package.json) that
   // opens the dashboard tab as soon as the user clicks the icon.
   const sidebar = vscode.window.createTreeView('projectTiles.sidebar', { treeDataProvider: emptyTree });
@@ -86,6 +110,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('projectTiles.open', open),
     vscode.commands.registerCommand('projectTiles.addCurrentFolder', () => addFolder(currentFolder())),
+    vscode.commands.registerCommand('projectTiles.addRecent', addRecent),
     vscode.commands.registerCommand('projectTiles.addFolder', async () => {
       const picked = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false });
       await addFolder(picked?.[0]?.fsPath);
@@ -103,7 +128,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (
         e.affectsConfiguration('projectTiles.languageIgnoreDirs') ||
         e.affectsConfiguration('projectTiles.maxFilesScanned') ||
-        e.affectsConfiguration('projectTiles.fetchRemote')
+        e.affectsConfiguration('projectTiles.fetchRemote') ||
+        e.affectsConfiguration('projectTiles.showGit') ||
+        e.affectsConfiguration('projectTiles.showLanguages')
       ) {
         metadata.invalidate();
       }
@@ -123,6 +150,19 @@ const emptyTree: vscode.TreeDataProvider<never> = {
   getTreeItem: () => new vscode.TreeItem(''),
   getChildren: () => [],
 };
+
+type UriLike = vscode.Uri | { scheme: string; authority?: string; path?: string };
+
+/** Local folders and .code-workspace files from the editor's own "Recently opened" list. */
+async function recentFolders(): Promise<string[]> {
+  const recent = await vscode.commands.executeCommand<{ workspaces?: Array<{ folderUri?: UriLike; workspace?: { configPath: UriLike } }> }>(
+    '_workbench.getRecentlyOpened',
+  );
+  return (recent?.workspaces ?? [])
+    .map((entry) => entry.folderUri ?? entry.workspace?.configPath)
+    .filter((uri): uri is UriLike => uri !== undefined && uri.scheme === 'file')
+    .map((uri) => (uri instanceof vscode.Uri ? uri : vscode.Uri.from(uri)).fsPath);
+}
 
 function currentFolder(): string | undefined {
   const workspaceFile = vscode.workspace.workspaceFile;

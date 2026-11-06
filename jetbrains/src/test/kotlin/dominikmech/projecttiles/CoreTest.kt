@@ -5,10 +5,13 @@ import dominikmech.projecttiles.domain.Logo
 import dominikmech.projecttiles.domain.Project
 import dominikmech.projecttiles.domain.ProjectCatalog
 import dominikmech.projecttiles.domain.ProjectInput
+import dominikmech.projecttiles.domain.Unavailable
 import dominikmech.projecttiles.domain.clampGraphemes
 import dominikmech.projecttiles.services.GitInfoProvider
 import dominikmech.projecttiles.services.LanguageDetector
 import dominikmech.projecttiles.services.LanguageTable
+import dominikmech.projecttiles.services.unavailability
+import dominikmech.projecttiles.services.volumeRoot
 import dominikmech.projecttiles.storage.CatalogRepository
 import dominikmech.projecttiles.storage.configRoot
 import dominikmech.projecttiles.storage.parseCatalog
@@ -169,6 +172,25 @@ class CoreTest {
         assertNull(GitInfoProvider.parseCommitLine(""))
         assertEquals(2 to 5, GitInfoProvider.parseAheadBehind("2\t5\n"))
         assertNull(GitInfoProvider.parseAheadBehind("fatal: no upstream"))
+    }
+
+    @Test
+    fun `finds the volume a project lives on, like the VS Code extension`() {
+        assertEquals("D:\\", volumeRoot("D:\\Projects\\shop", "Windows 11"))
+        assertEquals("\\\\nas\\code\\", volumeRoot("\\\\nas\\code\\shop", "Windows 11"))
+        assertEquals("/Volumes/External", volumeRoot("/Volumes/External/dev/shop", "Mac OS X"))
+        assertEquals("/", volumeRoot("/Users/a/dev/shop", "Mac OS X"))
+        assertEquals("/media/a/USB", volumeRoot("/media/a/USB/shop", "Linux"))
+        assertEquals("/run/media/a/USB", volumeRoot("/run/media/a/USB/shop", "Linux"))
+        assertEquals("/mnt/nas", volumeRoot("/mnt/nas/shop", "Linux"))
+        assertEquals("/", volumeRoot("/home/a/shop", "Linux"))
+    }
+
+    @Test
+    fun `tells a deleted folder from an existing one`() {
+        val dir = tempDir()
+        assertNull(unavailability(dir.toString()))
+        assertEquals(Unavailable.DELETED, unavailability(dir.resolve("gone").toString()))
     }
 
     @Test

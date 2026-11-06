@@ -3,5 +3,5 @@
   "compilerOptions": {
     "noEmit": false
   },
-  "include": ["src/domain", "src/services/languages", "src/services/git/parse.ts", "src/storage/SharedDataLocation.ts", "test"]
+  "include": ["src/domain", "src/services/languages", "src/services/git/parse.ts", "src/storage/SharedDataLocation.ts", "src/services/PathState.ts", "src/services/MetadataService.ts", "test"]
 }

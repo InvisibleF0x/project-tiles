@@ -15,7 +15,6 @@
   "terminal": "Terminal",
   "reveal": "Show in file explorer",
   "remove": "Remove from dashboard",
-  "missing": "Folder not found",
   "notGit": "not a git repository",
   "loading": "loading…",
   "noLanguages": "no languages detected",
@@ -62,5 +61,16 @@
   "dragHint": "Drag to reorder",
   "pathRequired": "Path is required.",
   "pathExists": "This folder is already on the dashboard.",
-  "current": "currently open"
+  "current": "currently open",
+  "addRecent": "Add recent…",
+  "addRecentTitle": "Select recent projects to add",
+  "addRecentNone": "Every recent project is already on the dashboard.",
+  "driveOffline": "Drive not connected",
+  "driveOfflineHint": "The drive or network share with this project is not available. The last known details are shown.",
+  "folderDeleted": "Folder deleted or moved",
+  "folderDeletedHint": "The drive is connected, but this folder is gone. Edit the path or remove the project.",
+  "fetch": "Fetch from the remote",
+  "pull": "Pull (fast-forward only)",
+  "push": "Push to the remote",
+  "gitFailed": "git {op} failed in {project}: {error}"
 }

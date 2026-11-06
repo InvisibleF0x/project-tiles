@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 — 2026-11-06
+
+- **Fetch, pull and push** buttons on tiles of repositories with an upstream. Pull is fast-forward only, so it
+  never creates a merge; git's own message is shown when an operation fails.
+- **Add recent…**: pick any number of projects from the editor's recently opened list and add them at once.
+- **Drives**: a project on a disconnected drive or network share is greyed out ("Drive not connected") and keeps
+  its last known details; a folder that was deleted or moved on a connected drive gets a warning instead.
+- **Tile options**: hide the path, the languages or the git status (`projectTiles.showPath`, `showLanguages`,
+  `showGit`). Hidden parts are not computed at all, so with git hidden no git process runs.
+- Smaller buttons on tiles.
+- "Add current folder" only appears when a folder or project is open; on the JetBrains welcome screen it did nothing.
+
 ## 1.0.2 — 2026-11-04
 
 - JetBrains: the dashboard did not open in 2026.2 IDEs (the embedded browser moved to a separate bundled plugin).

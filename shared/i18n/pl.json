@@ -15,7 +15,6 @@
   "terminal": "Terminal",
   "reveal": "Pokaż w eksploratorze plików",
   "remove": "Usuń z pulpitu",
-  "missing": "Folder nie istnieje",
   "notGit": "to nie jest repozytorium git",
   "loading": "wczytywanie…",
   "noLanguages": "nie wykryto języków",
@@ -62,5 +61,16 @@
   "dragHint": "Przeciągnij, aby zmienić kolejność",
   "pathRequired": "Ścieżka jest wymagana.",
   "pathExists": "Ten folder jest już na pulpicie.",
-  "current": "aktualnie otwarty"
+  "current": "aktualnie otwarty",
+  "addRecent": "Dodaj z ostatnich…",
+  "addRecentTitle": "Wybierz ostatnie projekty do dodania",
+  "addRecentNone": "Wszystkie ostatnie projekty są już na pulpicie.",
+  "driveOffline": "Dysk niepodłączony",
+  "driveOfflineHint": "Dysk lub udział sieciowy z tym projektem jest niedostępny. Widać ostatnie znane dane.",
+  "folderDeleted": "Folder usunięty lub przeniesiony",
+  "folderDeletedHint": "Dysk jest podłączony, ale tego folderu już nie ma. Popraw ścieżkę albo usuń projekt.",
+  "fetch": "Fetch z remote",
+  "pull": "Pull (tylko fast-forward)",
+  "push": "Push do remote",
+  "gitFailed": "git {op} nie powiódł się w {project}: {error}"
 }

@@ -7,6 +7,9 @@ import com.intellij.ide.actions.RevealFileAction
 import com.intellij.ide.impl.OpenProjectTask
 import com.intellij.ide.impl.ProjectUtil
 import com.intellij.ide.ui.LafManagerListener
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
+import com.intellij.notification.Notifications
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
@@ -167,7 +170,20 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
             add("collections", compactGson.toJsonTree(service.collections))
             add("projects", compactGson.toJsonTree(projects))
             add("meta", compactGson.toJsonTree(meta))
-            add("settings", compactGson.toJsonTree(mapOf("openInNewWindow" to settings.openInNewWindow, "tileSize" to settings.tileSize, "columns" to settings.columns)))
+            add(
+                "settings",
+                compactGson.toJsonTree(
+                    mapOf(
+                        "openInNewWindow" to settings.openInNewWindow,
+                        "tileSize" to settings.tileSize,
+                        "columns" to settings.columns,
+                        "showPath" to settings.showPath,
+                        "showLanguages" to settings.showLanguages,
+                        "showGit" to settings.showGit,
+                    ),
+                ),
+            )
+            addProperty("canAddCurrent", currentFolder() != null)
             add("strings", WebAssets.strings())
             pendingEdit?.let { addProperty("editing", it) }
             pendingDraft?.let { if (pendingEdit != null) add("draft", compactGson.toJsonTree(it)) }
@@ -303,6 +319,25 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
             }
             "refresh" -> refreshMetadata(force = true, only = id?.let(service::getProject), gitOnly = false, network = true)
             "addCurrent" -> addCurrent()
+            "addRecent" -> withContext(Dispatchers.EDT) { RecentProjectsImport.run(ideProject) }
+            "git" -> {
+                val project = service.getProject(id ?: return) ?: return
+                val op = m.string("op")?.takeIf { it in REMOTE_OPERATIONS } ?: return
+                runGit(project, op)
+            }
+        }
+    }
+
+    private suspend fun runGit(project: Project, op: String) {
+        try {
+            val result = service.metadata.runRemote(project, op) { p, meta -> post(metaMessage(p, meta)) }
+            if (!result.ok) {
+                val text = WebAssets.strings().get("gitFailed").asString
+                    .replace("{op}", op).replace("{project}", project.name).replace("{error}", result.error)
+                Notifications.Bus.notify(Notification(NOTIFICATION_GROUP, "Project Tiles", text, NotificationType.ERROR), ideProject)
+            }
+        } finally {
+            post(mapOf("type" to "gitDone", "id" to project.id, "op" to op))
         }
     }
 
@@ -339,6 +374,8 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
     }
 
     companion object {
+        private val REMOTE_OPERATIONS = setOf("fetch", "pull", "push")
+        const val NOTIFICATION_GROUP = "Project Tiles"
         private val all = CopyOnWriteArrayList<DashboardView>()
 
         fun refreshAllViews() = all.forEach { it.refreshView() }

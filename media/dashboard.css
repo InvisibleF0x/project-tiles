@@ -185,7 +185,8 @@ svg.spin, .refresh-btn.busy svg { animation: spin 0.9s linear infinite; }
 .tile.dragging { opacity: 0.4; transform: none; }
 .tile.drop-before { box-shadow: -6px 0 0 -3px var(--accent); }
 .tile.drop-after { box-shadow: 6px 0 0 -3px var(--accent); }
-.tile.missing { opacity: 0.55; border-style: dashed; box-shadow: none; }
+.tile.offline { opacity: 0.5; filter: grayscale(1); border-style: dashed; box-shadow: none; }
+.tile.deleted { border-color: color-mix(in srgb, var(--vscode-errorForeground) 55%, var(--border)); }
 .tile.current::after {
   content: attr(data-current);
   position: absolute;
@@ -286,24 +287,33 @@ body.compact .tile .desc { -webkit-line-clamp: 1; }
 .git .when { flex: none; margin-left: auto; padding-left: 6px; }
 .git.muted { font-style: italic; }
 
+.availability { display: flex; align-items: center; gap: 7px; font-size: 0.85em; font-weight: 600; }
+.availability.offline { color: var(--muted); }
+.availability.deleted { color: var(--vscode-errorForeground); }
+
 .tile-footer {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 2px calc(var(--tile-pad) * -1) calc(var(--tile-pad) * -1);
-  padding: 10px var(--tile-pad) 12px;
+  padding: 8px var(--tile-pad) 9px;
   border-top: 1px solid var(--border);
   background: color-mix(in srgb, var(--vscode-input-background) 45%, transparent);
 }
 .footer-btn {
   justify-content: center;
-  padding: 6px 8px;
-  font-size: 0.85em;
+  gap: 5px;
+  padding: 3px 9px;
+  font-size: 0.78em;
   color: var(--vscode-button-secondaryForeground);
   background: var(--vscode-button-secondaryBackground);
-  border-radius: 7px;
+  border-radius: 6px;
   min-width: 0;
 }
+.git-actions { display: flex; gap: 1px; margin-left: auto; flex: none; }
+.git-actions .git-op { padding: 3px 5px; gap: 2px; font-size: 0.78em; font-weight: 600; }
+.git-actions .git-op:disabled { opacity: 0.5; cursor: default; }
+.git-actions .git-op.pending { color: var(--vscode-textLink-foreground); }
 .footer-btn span { overflow: hidden; text-overflow: ellipsis; }
 .footer-btn:hover { background: var(--vscode-button-secondaryHoverBackground); color: var(--vscode-foreground); }
 .footer-btn:first-child { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }

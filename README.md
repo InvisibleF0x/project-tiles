@@ -17,8 +17,11 @@ all sharing one project list.
 
 - Tiles with **name, description, logo** (emoji or text, an image file, or an auto-detected `logo.png` / `icon.png`) and colour
 - **Collections** with colours and descriptions; drag & drop to reorder projects and collections
-- **Git branch and last commit** per repository, plus an **ahead/behind badge** (↓ to pull, ↑ to push, ✓ up to date);
-  tiles refresh on their own after pull / commit / checkout
+- **Git branch and last commit** per repository, plus an **ahead/behind badge** (↓ to pull, ↑ to push, ✓ up to date)
+  and **fetch / pull / push buttons** (pull is fast-forward only); tiles refresh on their own after pull / commit / checkout
+- **Add recent…**: pick any number of projects from the editor's recently opened list at once
+- Projects on a **disconnected drive** are greyed out with their last known details; **deleted folders** are flagged
+- Hide the path, languages or git status on tiles; hidden parts are not computed at all
 - **Languages** like on GitHub (weighted by bytes), with a manual override per project
   (e.g. `C#, ShaderLab` for a Unity project instead of whatever its YAML suggests)
 - **Add current folder** in one click, with a form pre-filled from the open folder
@@ -42,6 +45,7 @@ Click a tile to open the project in the current window; `Ctrl`+click (or *New wi
 | `Project Tiles: Open Dashboard` | Opens the dashboard tab |
 | `Project Tiles: Add Current Folder as Project` | Adds the open folder / workspace and opens the edit form |
 | `Project Tiles: Add Folder as Project…` | Picks a folder from disk |
+| `Project Tiles: Add Recent Projects…` | Adds several projects from the recently opened list |
 | `Project Tiles: Refresh Git & Language Info` | Forces a metadata refresh, including `git fetch` |
 | `Project Tiles: Open Data File (projects.json)` | Opens the catalog for manual editing or backup |
 
@@ -55,6 +59,9 @@ Tip: bind `projectTiles.open` to a key, e.g. `Ctrl+Alt+P`.
 | `projectTiles.showOnStartup` | `false` | Open the dashboard when a window starts without a folder |
 | `projectTiles.tileSize` | `normal` | `normal` or `compact` |
 | `projectTiles.columns` | `3` | Preferred number of tile columns (fewer when the window is narrow) |
+| `projectTiles.showPath` | `true` | Show the folder path on tiles |
+| `projectTiles.showLanguages` | `true` | Show the language bar; when off, projects are not scanned |
+| `projectTiles.showGit` | `true` | Show git status and the fetch / pull / push buttons; when off, git is never run |
 | `projectTiles.fetchRemote` | `true` | Run `git fetch` before computing ahead/behind; off = compare with the last local fetch only |
 | `projectTiles.metadataCacheMinutes` | `10` | How long git info is reused before re-checking |
 | `projectTiles.languageCacheHours` | `12` | How long a language scan is reused before re-scanning |
@@ -73,8 +80,9 @@ The project list and imported logos are stored in one folder shared by every edi
 | macOS | `~/Library/Application Support/project-tiles` |
 | Linux | `$XDG_CONFIG_HOME/project-tiles` (default `~/.config/project-tiles`) |
 
-No telemetry, no accounts. The only network traffic is `git fetch` in your own repositories, when the
-dashboard opens and on manual refresh (turn it off with `projectTiles.fetchRemote`).
+No telemetry, no accounts. The only network traffic is git in your own repositories: `git fetch` when the
+dashboard opens and on manual refresh (turn it off with `projectTiles.fetchRemote`), and the fetch / pull / push
+you start yourself. Those run like your own git, with your credentials and hooks.
 
 ## How it stays light
 
