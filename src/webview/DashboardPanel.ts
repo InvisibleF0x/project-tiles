@@ -221,6 +221,7 @@ export class DashboardPanel implements vscode.Disposable {
           languages: patch.languages,
           color: patch.color,
           collectionId: patch.collectionId,
+          show: patch.show,
         });
         return;
       }

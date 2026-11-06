@@ -72,5 +72,11 @@
   "fetch": "Fetch z remote",
   "pull": "Pull (tylko fast-forward)",
   "push": "Push do remote",
-  "gitFailed": "git {op} nie powiódł się w {project}: {error}"
+  "gitFailed": "git {op} nie powiódł się w {project}: {error}",
+  "tileElements": "Na kafelku pokazuj",
+  "git": "Status git i przyciski",
+  "defaultShown": "Domyślnie (widoczne)",
+  "defaultHidden": "Domyślnie (ukryte)",
+  "shown": "Pokazuj",
+  "hidden": "Ukryj"
 }

@@ -17,7 +17,8 @@
   "cfg.maxFilesScanned": "Maximum number of files scanned per project for language detection.",
   "cfg.languageIgnoreDirs": "Directory names skipped during language detection.",
   "cmd.addRecent": "Add Recent Projects…",
-  "cfg.showPath": "Show the folder path on tiles.",
-  "cfg.showLanguages": "Show the language bar on tiles. When off, projects are not scanned for languages.",
-  "cfg.showGit": "Show git branch, last commit, ahead/behind and the fetch / pull / push buttons on tiles. When off, git is never run."
+  "cfg.showPath": "Show the folder path on tiles. Each project can override this in its edit form.",
+  "cfg.showLanguages": "Show the language bar on tiles. Projects that do not show it are not scanned. Each project can override this in its edit form.",
+  "cfg.showGit": "Show git branch, last commit, ahead/behind and the fetch / pull / push buttons on tiles. Projects that do not show it never run git. Each project can override this in its edit form.",
+  "cfg.showDescription": "Show the description on tiles. Each project can override this in its edit form."
 }

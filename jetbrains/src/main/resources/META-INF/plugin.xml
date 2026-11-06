@@ -18,6 +18,8 @@ A lightweight tile dashboard for your projects, in its own editor tab and on the
 If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x">support it through GitHub Sponsors</a>.</p>
 ]]></description>
     <change-notes><![CDATA[
+<p>1.2.0: per-project overrides for showing the path, description, languages and git status on its tile,
+on top of the global settings; a new global setting for the description.</p>
 <p>1.1.0: fetch / pull / push buttons on tiles; add several recent projects at once; projects on a disconnected
 drive are greyed out and deleted folders are flagged; options to hide the path, languages or git status;
 smaller buttons; "Add current folder" no longer shows on the welcome screen.</p>

@@ -36,6 +36,7 @@ import dominikmech.projecttiles.settings.ProjectTilesSettings
 import dominikmech.projecttiles.storage.asJsonObjectOrNull
 import dominikmech.projecttiles.storage.boolean
 import dominikmech.projecttiles.storage.compactGson
+import dominikmech.projecttiles.storage.parseVisibility
 import dominikmech.projecttiles.storage.string
 import java.nio.file.Files
 import java.nio.file.Path
@@ -178,6 +179,7 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
                         "tileSize" to settings.tileSize,
                         "columns" to settings.columns,
                         "showPath" to settings.showPath,
+                        "showDescription" to settings.showDescription,
                         "showLanguages" to settings.showLanguages,
                         "showGit" to settings.showGit,
                     ),
@@ -293,6 +295,7 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
                         languages = patch.getAsJsonArray("languages")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString },
                         color = patch.string("color"),
                         collectionId = patch.string("collectionId"),
+                        show = patch.get("show")?.asJsonObjectOrNull()?.let { parseVisibility(it) },
                     ),
                 )
             }

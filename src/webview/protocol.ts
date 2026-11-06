@@ -1,4 +1,4 @@
-import { Collection, Logo, Project, ProjectMetadata } from '../domain/model';
+import { Collection, Logo, Project, ProjectMetadata, TileVisibility } from '../domain/model';
 import { Strings } from '../i18n';
 import { RemoteOperation } from '../services/git/GitInfoProvider';
 
@@ -15,6 +15,7 @@ export interface DashboardSettings {
   tileSize: 'normal' | 'compact';
   columns: number;
   showPath: boolean;
+  showDescription: boolean;
   showLanguages: boolean;
   showGit: boolean;
 }
@@ -49,6 +50,7 @@ export interface ProjectPatch {
   languages: string[];
   color: string | undefined;
   collectionId: string | undefined;
+  show: TileVisibility | undefined;
 }
 
 export type WebviewToHost =

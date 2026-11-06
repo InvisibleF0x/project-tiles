@@ -17,7 +17,8 @@
   "cfg.maxFilesScanned": "Maksymalna liczba plików skanowanych w projekcie przy wykrywaniu języków.",
   "cfg.languageIgnoreDirs": "Nazwy katalogów pomijane przy wykrywaniu języków.",
   "cmd.addRecent": "Dodaj ostatnie projekty…",
-  "cfg.showPath": "Pokazuj ścieżkę folderu na kafelkach.",
-  "cfg.showLanguages": "Pokazuj pasek języków na kafelkach. Gdy wyłączone, projekty nie są skanowane.",
-  "cfg.showGit": "Pokazuj na kafelkach branch, ostatni commit, ahead/behind i przyciski fetch / pull / push. Gdy wyłączone, git nie jest uruchamiany."
+  "cfg.showPath": "Pokazuj ścieżkę folderu na kafelkach. Każdy projekt może to zmienić w swoim formularzu edycji.",
+  "cfg.showLanguages": "Pokazuj pasek języków na kafelkach. Projekty, które go nie pokazują, nie są skanowane. Każdy projekt może to zmienić w swoim formularzu edycji.",
+  "cfg.showGit": "Pokazuj na kafelkach branch, ostatni commit, ahead/behind i przyciski fetch / pull / push. Projekty, które tego nie pokazują, nie uruchamiają gita. Każdy projekt może to zmienić w swoim formularzu edycji.",
+  "cfg.showDescription": "Pokazuj opis na kafelkach. Każdy projekt może to zmienić w swoim formularzu edycji."
 }

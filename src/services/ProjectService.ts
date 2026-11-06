@@ -100,7 +100,8 @@ export class ProjectService {
     const cleaned: ProjectInput = { ...input, logo: await this.materializeLogo(id, input.logo) };
     const existing = this.catalog.getProject(id);
     const saved = existing ? this.catalog.updateProject(id, cleaned)! : this.catalog.addProjectWithId(id, cleaned);
-    if (!existing || existing.path !== saved.path || !sameList(existing.languages, saved.languages) || existing.logo?.kind !== saved.logo?.kind) {
+    const computedChanged = existing?.show?.git !== saved.show?.git || existing?.show?.languages !== saved.show?.languages;
+    if (!existing || existing.path !== saved.path || !sameList(existing.languages, saved.languages) || existing.logo?.kind !== saved.logo?.kind || computedChanged) {
       this.metadata.invalidate(saved.path);
     }
     await this.persist();

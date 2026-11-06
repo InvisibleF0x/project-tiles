@@ -26,7 +26,21 @@ data class Project(
     /** Accent colour (#rgb / #rrggbb). Falls back to the collection colour when absent. */
     val color: String? = null,
     val collectionId: String? = null,
+    /** Per-tile overrides of the global visibility settings; a null field follows the global setting. */
+    val show: TileVisibility? = null,
 )
+
+data class TileVisibility(
+    val path: Boolean? = null,
+    val description: Boolean? = null,
+    val languages: Boolean? = null,
+    val git: Boolean? = null,
+) {
+    fun isEmpty() = path == null && description == null && languages == null && git == null
+}
+
+/** Whether an element is shown on a project's tile: its own override, else the global setting. */
+fun isShown(override: Boolean?, globalDefault: Boolean): Boolean = override ?: globalDefault
 
 data class Collection(
     val id: String,

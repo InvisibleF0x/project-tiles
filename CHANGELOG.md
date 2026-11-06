@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 — 2026-11-06
+
+- **Per-tile visibility**: each project can show or hide its path, description, languages and git status
+  regardless of the global settings (edit form → *Show on the tile*); "Default" follows the global setting.
+  Overrides live in `projects.json`, so they apply in every editor.
+- New global setting `projectTiles.showDescription`.
+
 ## 1.1.0 — 2026-11-06
 
 - **Fetch, pull and push** buttons on tiles of repositories with an upstream. Pull is fast-forward only, so it

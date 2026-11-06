@@ -10,6 +10,7 @@ import dominikmech.projecttiles.domain.Project
 import dominikmech.projecttiles.domain.ProjectCatalog
 import dominikmech.projecttiles.domain.ProjectInput
 import dominikmech.projecttiles.domain.ProjectMetadata
+import dominikmech.projecttiles.domain.isShown
 import dominikmech.projecttiles.settings.ProjectTilesSettings
 import dominikmech.projecttiles.storage.CatalogRepository
 import dominikmech.projecttiles.storage.MetadataCacheStore
@@ -40,8 +41,8 @@ class ProjectService(val scope: CoroutineScope) {
             MetadataOptions(
                 gitTtlMs = { settings.gitTtlMs },
                 languagesTtlMs = { settings.languagesTtlMs },
-                gitEnabled = { settings.showGit },
-                languagesEnabled = { settings.showLanguages },
+                gitEnabled = { project -> isShown(project.show?.git, settings.showGit) },
+                languagesEnabled = { project -> isShown(project.show?.languages, settings.showLanguages) },
             ),
         )
     }
@@ -106,7 +107,8 @@ class ProjectService(val scope: CoroutineScope) {
             val cleaned = input.copy(logo = materializeLogo(id, input.logo))
             val existing = catalog.getProject(id)
             val saved = if (existing != null) catalog.updateProject(id, cleaned)!! else catalog.addProjectWithId(id, cleaned)
-            if (existing == null || existing.path != saved.path || existing.languages != saved.languages || existing.logo?.kind != saved.logo?.kind) {
+            val computedChanged = existing?.show?.git != saved.show?.git || existing?.show?.languages != saved.show?.languages
+            if (existing == null || existing.path != saved.path || existing.languages != saved.languages || existing.logo?.kind != saved.logo?.kind || computedChanged) {
                 metadata.invalidate(saved.path)
             }
             saved

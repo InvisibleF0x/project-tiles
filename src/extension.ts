@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { isShown } from './domain/model';
 import { stringsFor } from './i18n';
 import { CliGitInfoProvider } from './services/git/GitInfoProvider';
 import { ExtensionLanguageDetector } from './services/languages/LanguageDetector';
@@ -38,8 +39,8 @@ export function activate(context: vscode.ExtensionContext): void {
     {
       gitTtlMs: () => config().get<number>('metadataCacheMinutes', 10) * 60_000,
       languagesTtlMs: () => config().get<number>('languageCacheHours', 12) * 3_600_000,
-      gitEnabled: () => config().get<boolean>('showGit', true),
-      languagesEnabled: () => config().get<boolean>('showLanguages', true),
+      gitEnabled: (project) => isShown(project, 'git', config().get<boolean>('showGit', true)),
+      languagesEnabled: (project) => isShown(project, 'languages', config().get<boolean>('showLanguages', true)),
     },
   );
   const service = new ProjectService(repository, logos, metadata);
@@ -53,6 +54,7 @@ export function activate(context: vscode.ExtensionContext): void {
       tileSize: config().get<'normal' | 'compact'>('tileSize', 'normal'),
       columns: Math.min(6, Math.max(1, config().get<number>('columns', 3))),
       showPath: config().get<boolean>('showPath', true),
+      showDescription: config().get<boolean>('showDescription', true),
       showLanguages: config().get<boolean>('showLanguages', true),
       showGit: config().get<boolean>('showGit', true),
     }),

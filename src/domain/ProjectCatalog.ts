@@ -1,4 +1,14 @@
-import { CatalogData, Collection, LOGO_TEXT_MAX, Project, clampGraphemes, emptyCatalog, normalizeHexColor } from './model';
+import {
+  CatalogData,
+  Collection,
+  LOGO_TEXT_MAX,
+  Project,
+  TILE_ELEMENTS,
+  TileVisibility,
+  clampGraphemes,
+  emptyCatalog,
+  normalizeHexColor,
+} from './model';
 
 export type IdGenerator = () => string;
 
@@ -16,6 +26,7 @@ export interface ProjectInput {
   languages?: string[] | undefined;
   color?: string | undefined;
   collectionId?: string | undefined;
+  show?: TileVisibility | undefined;
 }
 
 export interface CollectionPatch {
@@ -77,6 +88,7 @@ export class ProjectCatalog {
           languages: Array.isArray(p.languages) ? p.languages.filter((l): l is string => typeof l === 'string') : undefined,
           color: typeof p.color === 'string' ? p.color : undefined,
           collectionId: typeof p.collectionId === 'string' && collectionIds.has(p.collectionId) ? p.collectionId : undefined,
+          show: p.show && typeof p.show === 'object' ? p.show : undefined,
         }),
       );
     }
@@ -272,7 +284,23 @@ export class ProjectCatalog {
     if (raw.collectionId) {
       project.collectionId = raw.collectionId;
     }
+    const show = ProjectCatalog.cleanVisibility(raw.show);
+    if (show) {
+      project.show = show;
+    }
     return project;
+  }
+
+  /** Keeps only boolean overrides of known elements; `undefined` when nothing is overridden. */
+  private static cleanVisibility(raw: TileVisibility | undefined): TileVisibility | undefined {
+    const show: TileVisibility = {};
+    for (const element of TILE_ELEMENTS) {
+      const value = raw?.[element];
+      if (typeof value === 'boolean') {
+        show[element] = value;
+      }
+    }
+    return Object.keys(show).length > 0 ? show : undefined;
   }
 
   private static baseName(path: string): string {

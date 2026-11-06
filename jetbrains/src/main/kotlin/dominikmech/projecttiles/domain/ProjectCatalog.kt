@@ -14,6 +14,7 @@ data class ProjectInput(
     val languages: List<String>? = null,
     val color: String? = null,
     val collectionId: String? = null,
+    val show: TileVisibility? = null,
 )
 
 /** In-memory catalog with all ordering and grouping rules; callers persist [snapshot] after mutations. */
@@ -157,6 +158,7 @@ class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
                         languages = p.languages,
                         color = p.color,
                         collectionId = p.collectionId?.takeIf { it in collectionIds },
+                        show = p.show,
                     ),
                 )
             }
@@ -180,6 +182,7 @@ class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
                 languages = raw.languages?.map { it.trim() }?.filter { it.isNotEmpty() }?.ifEmpty { null },
                 color = normalizeHexColor(raw.color),
                 collectionId = raw.collectionId?.ifEmpty { null },
+                show = raw.show?.takeUnless { it.isEmpty() },
             )
         }
 

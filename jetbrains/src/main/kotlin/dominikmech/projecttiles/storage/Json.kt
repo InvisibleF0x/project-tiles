@@ -10,6 +10,7 @@ import dominikmech.projecttiles.domain.CatalogData
 import dominikmech.projecttiles.domain.Collection
 import dominikmech.projecttiles.domain.Logo
 import dominikmech.projecttiles.domain.Project
+import dominikmech.projecttiles.domain.TileVisibility
 
 /** Pretty-printed like `JSON.stringify(data, null, 2)`; null fields are omitted. */
 val prettyGson: Gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
@@ -44,10 +45,19 @@ fun parseCatalog(text: String): CatalogData {
             languages = o.get("languages")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { it.stringOrNull() },
             color = o.string("color"),
             collectionId = o.string("collectionId"),
+            show = o.get("show")?.asJsonObjectOrNull()?.let { parseVisibility(it) },
         )
     }
     return CatalogData(1, collections, projects)
 }
+
+/** Only boolean values count; anything else means "follow the global setting". */
+fun parseVisibility(o: JsonObject) = TileVisibility(
+    path = o.boolean("path"),
+    description = o.boolean("description"),
+    languages = o.boolean("languages"),
+    git = o.boolean("git"),
+)
 
 internal fun JsonElement.asJsonObjectOrNull(): JsonObject? = if (isJsonObject) asJsonObject else null
 

@@ -20,10 +20,10 @@ class MetadataOptions(
     val gitTtlMs: () -> Long,
     /** Language scans are expensive; they are reused for this long. */
     val languagesTtlMs: () -> Long,
-    /** False when tiles do not show git info: no git process is started at all. */
-    val gitEnabled: () -> Boolean = { true },
-    /** False when tiles do not show languages: nothing is scanned. */
-    val languagesEnabled: () -> Boolean = { true },
+    /** False when the project's tile does not show git info: no git process is started for it. */
+    val gitEnabled: (Project) -> Boolean = { true },
+    /** False when the project's tile does not show languages: it is not scanned. */
+    val languagesEnabled: (Project) -> Boolean = { true },
     val quickConcurrency: Int = 8,
     /** `git fetch` calls wait on the network, not the CPU. */
     val fetchConcurrency: Int = 8,
@@ -89,9 +89,9 @@ class MetadataService(
         val now = System.currentTimeMillis()
         val gitTtl = options.gitTtlMs()
         val langTtl = options.languagesTtlMs()
-        val gitEnabled = options.gitEnabled()
-        val languagesEnabled = options.languagesEnabled()
         val plan = projects.filter { it.path !in inFlight }.map { p ->
+            val gitEnabled = options.gitEnabled(p)
+            val languagesEnabled = options.languagesEnabled(p)
             val cached = cache[p.path]
             val due = opts.force || cached == null || now - cached.fetchedAt > gitTtl
             val languages = languagesEnabled && !opts.gitOnly && (opts.force || cached == null || now - cached.languagesAt > langTtl)

@@ -20,8 +20,10 @@ class ProjectTilesConfigurable : BoundConfigurable("Project Tiles") {
             row("Preferred number of columns:") { intTextField(1..6).bindIntText(state::columns).columns(4) }
             row("Tile size:") { comboBox(listOf("normal", "compact")).bindItem({ state.tileSize ?: "normal" }, { state.tileSize = it ?: "normal" }) }
             row { checkBox("Show the folder path").bindSelected(state::showPath) }
-            row { checkBox("Show languages (when off, projects are not scanned)").bindSelected(state::showLanguages) }
-            row { checkBox("Show git status and fetch / pull / push buttons (when off, git is never run)").bindSelected(state::showGit) }
+            row { checkBox("Show the description").bindSelected(state::showDescription) }
+            row { checkBox("Show languages (projects that do not show them are not scanned)").bindSelected(state::showLanguages) }
+            row { checkBox("Show git status and fetch / pull / push buttons (projects that do not show them never run git)").bindSelected(state::showGit) }
+            row { comment("Each project can override these in its edit form on the dashboard.") }
         }
         group("Git") {
             row { checkBox("Run git fetch before computing ahead/behind (uses the network)").bindSelected(state::fetchRemote) }

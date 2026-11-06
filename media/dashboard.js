@@ -67,6 +67,12 @@
   const escapeHtml = (/** @type {string} */ s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const post = (/** @type {import('../src/webview/protocol').WebviewToHost} */ m) => vscode.postMessage(m);
   const S = () => /** @type {NonNullable<typeof state>} */ (state).strings;
+  const TILE_ELEMENTS = /** @type {const} */ ({ path: 'showPath', description: 'showDescription', languages: 'showLanguages', git: 'showGit' });
+  /** Mirrors isShown() in src/domain/model.ts: the project's own override, else the global setting. */
+  const shown = (p, element) => {
+    const own = p.show && p.show[element];
+    return typeof own === 'boolean' ? own : Boolean(state && state.settings[TILE_ELEMENTS[element]]);
+  };
   const matches = (/** @type {import('../src/webview/protocol').ProjectView} */ p) => {
     const q = filter.trim().toLowerCase();
     if (!q) return true;
@@ -196,10 +202,10 @@
         renderLogo(p),
         h('div', { class: 'tile-title' }, [
           h('div', { class: 'name' }, [p.name]),
-          st.settings.showPath ? h('div', { class: 'path' }, ['‎' + p.path]) : null,
+          shown(p, 'path') ? h('div', { class: 'path' }, ['‎' + p.path]) : null,
         ]),
       ]),
-      p.description ? h('div', { class: 'desc' }, [p.description]) : null,
+      p.description && shown(p, 'description') ? h('div', { class: 'desc' }, [p.description]) : null,
       h('div', { class: 'meta' }),
       h('div', { class: 'tile-footer' }, [
         footerBtn('here', s.openCurrentWindow, () => post({ type: 'open', id: p.id, newWindow: false })),
@@ -244,7 +250,6 @@
   /** Fills the languages + git block and the git buttons of a tile from metadata (or a loading placeholder). */
   function patchMeta(tile, p, meta) {
     const s = S();
-    const { settings } = /** @type {NonNullable<typeof state>} */ (state);
     const box = tile.querySelector('.meta');
     if (!box) return;
     const unavailable = meta && !meta.exists ? (meta.availability || 'deleted') : '';
@@ -259,13 +264,13 @@
       return;
     }
     if (!meta) {
-      if (settings.showLanguages || settings.showGit) box.replaceChildren(h('div', { class: 'git muted loading', html: ICONS.spinner + `<span>${escapeHtml(s.loading)}</span>` }));
+      if (shown(p, 'languages') || shown(p, 'git')) box.replaceChildren(h('div', { class: 'git muted loading', html: ICONS.spinner + `<span>${escapeHtml(s.loading)}</span>` }));
       else box.replaceChildren();
       return;
     }
     const offline = unavailable === 'offline';
-    if (settings.showLanguages && (!offline || meta.languages.length)) parts.push(...renderLanguages(p, meta));
-    if (settings.showGit && (!offline || meta.git)) parts.push(renderGit(meta));
+    if (shown(p, 'languages') && (!offline || meta.languages.length)) parts.push(...renderLanguages(p, meta));
+    if (shown(p, 'git') && (!offline || meta.git)) parts.push(renderGit(meta));
     box.replaceChildren(...parts);
   }
 
@@ -284,7 +289,7 @@
     const s = S();
     const group = tile.querySelector('.git-actions');
     if (!group) return;
-    const sync = state && state.settings.showGit && meta && meta.git && meta.git.sync;
+    const sync = shown(p, 'git') && meta && meta.git && meta.git.sync;
     if (!sync) { group.replaceChildren(); return; }
     const running = gitBusy.get(p.id);
     const button = (op, icon, title, count) => h('button', {
@@ -392,6 +397,20 @@
     const preview = h('div', { class: 'logo-preview' });
     const picker = colorPicker(p.color);
     const radios = {};
+    const visibility = Object.keys(TILE_ELEMENTS).map((element) => {
+      const own = p.show && p.show[element];
+      const select = h('select', {}, [
+        h('option', { value: '' }, [st.settings[TILE_ELEMENTS[element]] ? s.defaultShown : s.defaultHidden]),
+        h('option', { value: 'show', selected: own === true }, [s.shown]),
+        h('option', { value: 'hide', selected: own === false }, [s.hidden]),
+      ]);
+      return { element, select };
+    });
+    const visibilityPatch = () => {
+      const show = {};
+      for (const { element, select } of visibility) if (select.value) show[element] = select.value === 'show';
+      return Object.keys(show).length ? show : undefined;
+    };
 
     function syncLogo() {
       for (const [kind, radio] of Object.entries(radios)) radio.checked = kind === logo.kind;
@@ -428,6 +447,10 @@
       ]),
       h('div', { class: 'field' }, [h('label', {}, [s.color]), picker, h('div', { class: 'hint' }, [s.colorHint])]),
       h('div', { class: 'field' }, [h('label', {}, [s.collection]), collectionSelect]),
+      h('div', { class: 'field' }, [
+        h('label', {}, [s.tileElements]),
+        h('div', { class: 'visibility' }, visibility.map(({ element, select }) => h('label', {}, [h('span', {}, [s[element]]), select]))),
+      ]),
       h('div', { class: 'buttons' }, [
         id ? h('button', { class: 'danger left', onclick: () => confirmDialog(s.removeProjectConfirm, () => post({ type: 'removeProject', id })) }, [s.remove]) : null,
         h('button', { class: 'secondary', onclick: closeDialog }, [s.cancel]),
@@ -440,6 +463,7 @@
             name: nameInput.value.trim() || baseName(path), path, description: descInput.value,
             logo: { kind: logo.kind, value: logo.kind === 'emoji' ? emojiInput.value : logo.value },
             languages: splitList(langInput.value), color: picker.value || undefined, collectionId: collectionSelect.value || undefined,
+            show: visibilityPatch(),
           } });
           closeDialog();
         } }, [s.save]),

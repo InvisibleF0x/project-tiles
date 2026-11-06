@@ -72,5 +72,11 @@
   "fetch": "Fetch from the remote",
   "pull": "Pull (fast-forward only)",
   "push": "Push to the remote",
-  "gitFailed": "git {op} failed in {project}: {error}"
+  "gitFailed": "git {op} failed in {project}: {error}",
+  "tileElements": "Show on the tile",
+  "git": "Git status and buttons",
+  "defaultShown": "Default (shown)",
+  "defaultHidden": "Default (hidden)",
+  "shown": "Show",
+  "hidden": "Hide"
 }

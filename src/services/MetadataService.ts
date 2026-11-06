@@ -16,10 +16,10 @@ export interface MetadataServiceOptions {
   fetchConcurrency?: number;
   /** Language scans (disk + CPU) running concurrently. */
   scanConcurrency?: number;
-  /** False when tiles do not show git info: no git process is started at all. */
-  gitEnabled?: () => boolean;
-  /** False when tiles do not show languages: nothing is scanned. */
-  languagesEnabled?: () => boolean;
+  /** False when the project's tile does not show git info: no git process is started for it. */
+  gitEnabled?: (project: Project) => boolean;
+  /** False when the project's tile does not show languages: it is not scanned. */
+  languagesEnabled?: (project: Project) => boolean;
 }
 
 export interface RefreshOptions {
@@ -110,12 +110,11 @@ export class MetadataService {
     const now = Date.now();
     const gitTtl = this.options.gitTtlMs();
     const langTtl = this.options.languagesTtlMs();
-    const gitEnabled = this.options.gitEnabled?.() ?? true;
-    const languagesEnabled = this.options.languagesEnabled?.() ?? true;
-
     const plan = projects
       .filter((p) => !this.inFlight.has(p.path))
       .map((p): Task => {
+        const gitEnabled = this.options.gitEnabled?.(p) ?? true;
+        const languagesEnabled = this.options.languagesEnabled?.(p) ?? true;
         const cached = this.cache.get(p.path);
         const due = options.force === true || !cached || now - cached.fetchedAt > gitTtl;
         const manual = languagesEnabled && (p.languages ?? []).length > 0;

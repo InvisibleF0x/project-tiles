@@ -12,6 +12,7 @@ class ProjectTilesState : BaseState() {
     var columns by property(3)
     var tileSize by string("normal")
     var showPath by property(true)
+    var showDescription by property(true)
     var showLanguages by property(true)
     var showGit by property(true)
     var fetchRemote by property(true)
@@ -28,6 +29,7 @@ class ProjectTilesSettings : SimplePersistentStateComponent<ProjectTilesState>(P
     val columns get() = state.columns.coerceIn(1, 6)
     val tileSize get() = if (state.tileSize == "compact") "compact" else "normal"
     val showPath get() = state.showPath
+    val showDescription get() = state.showDescription
     val showLanguages get() = state.showLanguages
     val showGit get() = state.showGit
     val fetchRemote get() = state.fetchRemote

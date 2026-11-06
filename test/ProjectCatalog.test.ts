@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ProjectCatalog } from '../src/domain/ProjectCatalog';
-import { clampGraphemes, initialsFor } from '../src/domain/model';
+import { clampGraphemes, initialsFor, isShown } from '../src/domain/model';
 
 const ids = () => {
   let n = 0;
@@ -145,5 +145,27 @@ describe('ProjectCatalog', () => {
     const cleared = catalog.updateProject(p.id, { logo: undefined, collectionId: undefined })!;
     assert.equal(cleared.logo, undefined);
     assert.equal(cleared.collectionId, undefined);
+  });
+
+  it('keeps only boolean overrides of known tile elements', () => {
+    const catalog = new ProjectCatalog(undefined, ids());
+    const p = catalog.addProject({ name: 'a', path: '/a', show: { git: false, path: true } });
+    assert.deepEqual(p.show, { path: true, git: false });
+    const tampered = ProjectCatalog.normalize({
+      version: 1,
+      collections: [],
+      projects: [{ id: 'x', name: 'x', path: '/x', show: { languages: 'no', colour: true, description: false } as never }],
+    });
+    assert.deepEqual(tampered.projects[0]!.show, { description: false });
+    assert.equal(catalog.updateProject(p.id, { show: {} })!.show, undefined);
+  });
+});
+
+describe('isShown', () => {
+  it('lets a project override the global setting either way', () => {
+    assert.equal(isShown({}, 'git', true), true);
+    assert.equal(isShown({ show: { git: false } }, 'git', true), false);
+    assert.equal(isShown({ show: { git: true } }, 'git', false), true);
+    assert.equal(isShown({ show: { git: true } }, 'path', false), false);
   });
 });

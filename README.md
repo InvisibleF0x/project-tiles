@@ -21,7 +21,8 @@ all sharing one project list.
   and **fetch / pull / push buttons** (pull is fast-forward only); tiles refresh on their own after pull / commit / checkout
 - **Add recent…**: pick any number of projects from the editor's recently opened list at once
 - Projects on a **disconnected drive** are greyed out with their last known details; **deleted folders** are flagged
-- Hide the path, languages or git status on tiles; hidden parts are not computed at all
+- Show or hide the path, description, languages and git status globally, and override that per tile;
+  hidden parts are not computed at all
 - **Languages** like on GitHub (weighted by bytes), with a manual override per project
   (e.g. `C#, ShaderLab` for a Unity project instead of whatever its YAML suggests)
 - **Add current folder** in one click, with a form pre-filled from the open folder
@@ -60,6 +61,7 @@ Tip: bind `projectTiles.open` to a key, e.g. `Ctrl+Alt+P`.
 | `projectTiles.tileSize` | `normal` | `normal` or `compact` |
 | `projectTiles.columns` | `3` | Preferred number of tile columns (fewer when the window is narrow) |
 | `projectTiles.showPath` | `true` | Show the folder path on tiles |
+| `projectTiles.showDescription` | `true` | Show the description on tiles |
 | `projectTiles.showLanguages` | `true` | Show the language bar; when off, projects are not scanned |
 | `projectTiles.showGit` | `true` | Show git status and the fetch / pull / push buttons; when off, git is never run |
 | `projectTiles.fetchRemote` | `true` | Run `git fetch` before computing ahead/behind; off = compare with the last local fetch only |
@@ -68,7 +70,8 @@ Tip: bind `projectTiles.open` to a key, e.g. `Ctrl+Alt+P`.
 | `projectTiles.maxFilesScanned` | `15000` | Upper bound on files inspected per project for language detection |
 | `projectTiles.languageIgnoreDirs` | `node_modules`, `Library`, `obj`, … | Directories skipped during language detection |
 
-In JetBrains IDEs the same options are under *Settings | Tools | Project Tiles*.
+In JetBrains IDEs the same options are under *Settings | Tools | Project Tiles*. Each project can override the
+four `show…` settings in its edit form (*Show on the tile*: Default / Show / Hide).
 
 ## Data and privacy
 

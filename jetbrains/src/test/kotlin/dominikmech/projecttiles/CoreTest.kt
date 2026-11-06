@@ -5,8 +5,10 @@ import dominikmech.projecttiles.domain.Logo
 import dominikmech.projecttiles.domain.Project
 import dominikmech.projecttiles.domain.ProjectCatalog
 import dominikmech.projecttiles.domain.ProjectInput
+import dominikmech.projecttiles.domain.TileVisibility
 import dominikmech.projecttiles.domain.Unavailable
 import dominikmech.projecttiles.domain.clampGraphemes
+import dominikmech.projecttiles.domain.isShown
 import dominikmech.projecttiles.services.GitInfoProvider
 import dominikmech.projecttiles.services.LanguageDetector
 import dominikmech.projecttiles.services.LanguageTable
@@ -114,7 +116,11 @@ class CoreTest {
         "Blade"
       ],
       "color": "#e5534b",
-      "collectionId": "c1"
+      "collectionId": "c1",
+      "show": {
+        "description": false,
+        "git": true
+      }
     }
   ]
 }"""
@@ -125,6 +131,17 @@ class CoreTest {
         assertEquals(vscodeJson, Files.readString(dir.resolve("projects.json")))
         assertEquals(parsed, ProjectCatalog.normalize(repo.load()))
         assertNull("own write is not reported as an external change", repo.loadIfChangedExternally())
+    }
+
+    @Test
+    fun `keeps only boolean overrides of tile elements and lets them win over the global setting`() {
+        val data = parseCatalog("""{"projects":[{"id":"a","path":"/a","show":{"languages":"no","git":false,"colour":true}},{"id":"b","path":"/b","show":{}}]}""")
+        val normalized = ProjectCatalog.normalize(data)
+        assertEquals(TileVisibility(git = false), normalized.projects[0].show)
+        assertNull(normalized.projects[1].show)
+        assertEquals(false, isShown(normalized.projects[0].show?.git, true))
+        assertEquals(true, isShown(normalized.projects[0].show?.path, true))
+        assertEquals(true, isShown(true, false))
     }
 
     @Test

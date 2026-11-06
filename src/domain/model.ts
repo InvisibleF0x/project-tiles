@@ -23,6 +23,19 @@ export interface Project {
   /** Accent colour (#rgb / #rrggbb). Falls back to the collection colour when absent. */
   color?: string;
   collectionId?: string;
+  /** Per-tile overrides of the global visibility settings; a missing key follows the global setting. */
+  show?: TileVisibility;
+}
+
+export type TileElement = 'path' | 'description' | 'languages' | 'git';
+
+export const TILE_ELEMENTS: readonly TileElement[] = ['path', 'description', 'languages', 'git'];
+
+export type TileVisibility = Partial<Record<TileElement, boolean>>;
+
+/** Whether an element is shown on a project's tile: its own override, else the global setting. */
+export function isShown(project: Pick<Project, 'show'>, element: TileElement, globalDefault: boolean): boolean {
+  return project.show?.[element] ?? globalDefault;
 }
 
 /** Maximum number of user-perceived characters (emoji or letters) in a text logo. */
