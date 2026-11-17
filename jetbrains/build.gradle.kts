@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "dominikmech"
-version = "1.2.0"
+version = "1.3.0"
 
 repositories {
     mavenCentral()
@@ -46,7 +46,7 @@ intellijPlatform {
     pluginVerification {
         ides {
             create(IntelliJPlatformType.PhpStorm, "2025.2.6.3")
-            create(IntelliJPlatformType.PhpStorm, "2026.2.4")
+            create(IntelliJPlatformType.PhpStorm, "2026.3")
         }
     }
     pluginConfiguration {
@@ -87,7 +87,7 @@ intellijPlatformTesting {
     runIde {
         register("runIdeLatest") {
             type = IntelliJPlatformType.IntellijIdea
-            version = "2026.2.4"
+            version = "2026.3"
             task { devOptions() }
         }
     }

@@ -70,8 +70,10 @@ Tip: bind `projectTiles.open` to a key, e.g. `Ctrl+Alt+P`.
 | `projectTiles.maxFilesScanned` | `15000` | Upper bound on files inspected per project for language detection |
 | `projectTiles.languageIgnoreDirs` | `node_modules`, `Library`, `obj`, … | Directories skipped during language detection |
 
-In JetBrains IDEs the same options are under *Settings | Tools | Project Tiles*. Each project can override the
-four `show…` settings in its edit form (*Show on the tile*: Default / Show / Hide).
+In JetBrains IDEs the same options are under *Settings | Tools | Project Tiles*, plus *Open the dashboard in the
+Home window*: on by default, it shows the dashboard in the Home window of 2026.3 IDEs instead of the start page and
+agent prompt. Each project can override the four `show…` settings in its edit form (*Show on the tile*: Default /
+Show / Hide).
 
 ## Data and privacy
 

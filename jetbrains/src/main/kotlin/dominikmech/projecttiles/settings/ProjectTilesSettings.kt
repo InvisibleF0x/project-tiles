@@ -9,6 +9,7 @@ import com.intellij.openapi.components.service
 
 class ProjectTilesState : BaseState() {
     var openInNewWindow by property(false)
+    var openInHomeWindow by property(true)
     var columns by property(3)
     var tileSize by string("normal")
     var showPath by property(true)
@@ -26,6 +27,7 @@ class ProjectTilesState : BaseState() {
 @State(name = "ProjectTiles", storages = [Storage("projectTiles.xml")])
 class ProjectTilesSettings : SimplePersistentStateComponent<ProjectTilesState>(ProjectTilesState()) {
     val openInNewWindow get() = state.openInNewWindow
+    val openInHomeWindow get() = state.openInHomeWindow
     val columns get() = state.columns.coerceIn(1, 6)
     val tileSize get() = if (state.tileSize == "compact") "compact" else "normal"
     val showPath get() = state.showPath

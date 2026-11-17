@@ -344,7 +344,9 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
         }
     }
 
-    private fun currentFolder(): String? = ideProject?.basePath?.let { Path.of(it).toString() }
+    /** The open project's folder; none on the welcome screen or in the Home window, whose project is hidden. */
+    private fun currentFolder(): String? =
+        ideProject?.takeUnless { HomeWindow.isHome(it) }?.basePath?.let { Path.of(it).toString() }
 
     /** Edits the open project's existing entry, or opens a form pre-filled with it. */
     fun addCurrent() {

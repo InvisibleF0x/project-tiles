@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 — 2026-11-17
+
+- JetBrains: the dashboard opens in the **Home window** of 2026.3 IDEs (and the non-modal welcome screen of
+  earlier ones), in place of the start page and its agent prompt. Turn it off in *Settings | Tools | Project Tiles*.
+- JetBrains: in the Home window the dashboard no longer offers to add the hidden welcome project as the current folder.
+
 ## 1.2.0 — 2026-11-06
 
 - **Per-tile visibility**: each project can show or hide its path, description, languages and git status

@@ -10,6 +10,7 @@ import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import dominikmech.projecttiles.services.ProjectService
 import dominikmech.projecttiles.ui.DashboardView
+import dominikmech.projecttiles.ui.HomeWindow
 
 class ProjectTilesConfigurable : BoundConfigurable("Project Tiles") {
     private val state get() = ProjectTilesSettings.getInstance().state
@@ -17,6 +18,7 @@ class ProjectTilesConfigurable : BoundConfigurable("Project Tiles") {
     override fun createPanel(): DialogPanel = panel {
         group("Dashboard") {
             row { checkBox("Open projects in a new window by default").bindSelected(state::openInNewWindow) }
+            row { checkBox("Open the dashboard in the Home window (instead of its start page and agent prompt)").bindSelected(state::openInHomeWindow) }
             row("Preferred number of columns:") { intTextField(1..6).bindIntText(state::columns).columns(4) }
             row("Tile size:") { comboBox(listOf("normal", "compact")).bindItem({ state.tileSize ?: "normal" }, { state.tileSize = it ?: "normal" }) }
             row { checkBox("Show the folder path").bindSelected(state::showPath) }
@@ -45,8 +47,10 @@ class ProjectTilesConfigurable : BoundConfigurable("Project Tiles") {
     override fun apply() {
         val scanInputs = { listOf(state.languageIgnoreDirs, state.maxFilesScanned, state.fetchRemote, state.showGit, state.showLanguages) }
         val before = scanInputs()
+        val homeBefore = state.openInHomeWindow
         super.apply()
         if (scanInputs() != before) ProjectService.getInstance().metadata.invalidate()
         DashboardView.refreshAllViews()
+        if (state.openInHomeWindow && !homeBefore) HomeWindow.openDashboardEverywhere()
     }
 }

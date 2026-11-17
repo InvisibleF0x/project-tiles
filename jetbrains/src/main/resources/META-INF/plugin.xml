@@ -3,7 +3,7 @@
     <name>Project Tiles</name>
     <vendor url="https://github.com/InvisibleF0x/project-tiles">Dominik Mech</vendor>
     <description><![CDATA[
-A lightweight tile dashboard for your projects, in its own editor tab and on the welcome screen.
+A lightweight tile dashboard for your projects, in its own editor tab, in the Home window and on the welcome screen.
 <ul>
   <li>Tiles with name, description and logo (emoji, image file, or an auto-detected <code>logo.png</code> / <code>icon.png</code>)</li>
   <li>Collections with colours; drag &amp; drop to reorder projects and collections</li>
@@ -18,6 +18,8 @@ A lightweight tile dashboard for your projects, in its own editor tab and on the
 If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x">support it through GitHub Sponsors</a>.</p>
 ]]></description>
     <change-notes><![CDATA[
+<p>1.3.0: the dashboard opens in the Home window of 2026.3 IDEs (and the non-modal welcome screen of earlier
+ones) in place of the start page and agent prompt; it can be turned off in Settings | Tools | Project Tiles.</p>
 <p>1.2.0: per-project overrides for showing the path, description, languages and git status on its tile,
 on top of the global settings; a new global setting for the description.</p>
 <p>1.1.0: fetch / pull / push buttons on tiles; add several recent projects at once; projects on a disconnected
@@ -37,6 +39,7 @@ smaller buttons; "Add current folder" no longer shows on the welcome screen.</p>
         <toolWindow id="Project Tiles" anchor="left" secondary="true" icon="/icons/toolWindow.svg"
                     factoryClass="dominikmech.projecttiles.ui.ProjectTilesToolWindowFactory"/>
         <welcomeTabFactory implementation="dominikmech.projecttiles.ui.ProjectTilesWelcomeTabFactory" order="first"/>
+        <postStartupActivity implementation="dominikmech.projecttiles.ui.HomeWindowDashboard"/>
         <notificationGroup id="Project Tiles" displayType="BALLOON"/>
         <applicationConfigurable parentId="tools" id="dominikmech.projecttiles.settings" displayName="Project Tiles"
                                  instance="dominikmech.projecttiles.settings.ProjectTilesConfigurable"/>
