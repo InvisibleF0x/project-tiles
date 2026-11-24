@@ -1,9 +1,14 @@
 import {
+  ACTION_COMMAND_MAX,
+  ACTION_NAME_MAX,
+  ACTIONS_MAX,
   CatalogData,
   Collection,
   LOGO_TEXT_MAX,
   Project,
   TILE_ELEMENTS,
+  TileAction,
+  TileElement,
   TileVisibility,
   clampGraphemes,
   emptyCatalog,
@@ -27,6 +32,7 @@ export interface ProjectInput {
   color?: string | undefined;
   collectionId?: string | undefined;
   show?: TileVisibility | undefined;
+  actions?: TileAction[] | undefined;
 }
 
 export interface CollectionPatch {
@@ -34,6 +40,20 @@ export interface CollectionPatch {
   description?: string | undefined;
   color?: string | undefined;
   collapsed?: boolean | undefined;
+  actions?: TileAction[] | undefined;
+}
+
+/** One change applied to many projects at once; a missing key leaves that field alone. */
+export interface BulkPatch {
+  /** `null` takes the projects out of their collection. */
+  collectionId?: string | null;
+  /** `null` clears the colour, so the collection colour shows. */
+  color?: string | null;
+  logo?: 'auto' | 'none';
+  /** `null` for an element goes back to the global setting. */
+  show?: Partial<Record<TileElement, boolean | null>>;
+  /** Appended to each project's own buttons. */
+  addActions?: TileAction[];
 }
 
 /**
@@ -58,18 +78,16 @@ export class ProjectCatalog {
       if (!c || typeof c.id !== 'string' || !SAFE_ID.test(c.id) || collections.some((x) => x.id === c.id)) {
         continue;
       }
-      const collection: Collection = { id: c.id, name: typeof c.name === 'string' && c.name.trim() ? c.name.trim() : 'Collection' };
-      const color = normalizeHexColor(c.color);
-      if (color) {
-        collection.color = color;
-      }
-      if (typeof c.description === 'string' && c.description.trim()) {
-        collection.description = c.description.trim();
-      }
-      if (c.collapsed === true) {
-        collection.collapsed = true;
-      }
-      collections.push(collection);
+      collections.push(
+        ProjectCatalog.cleanCollection({
+          id: c.id,
+          name: typeof c.name === 'string' ? c.name : '',
+          description: typeof c.description === 'string' ? c.description : undefined,
+          color: typeof c.color === 'string' ? c.color : undefined,
+          collapsed: c.collapsed === true,
+          actions: c.actions,
+        }),
+      );
     }
     const collectionIds = new Set(collections.map((c) => c.id));
     const projects: Project[] = [];
@@ -89,14 +107,24 @@ export class ProjectCatalog {
           color: typeof p.color === 'string' ? p.color : undefined,
           collectionId: typeof p.collectionId === 'string' && collectionIds.has(p.collectionId) ? p.collectionId : undefined,
           show: p.show && typeof p.show === 'object' ? p.show : undefined,
+          actions: p.actions,
         }),
       );
     }
-    return { version: 1, collections, projects };
+    const normalized: CatalogData = { version: 1, collections, projects };
+    const actions = ProjectCatalog.cleanActions(data.actions);
+    if (actions) {
+      normalized.actions = actions;
+    }
+    return normalized;
   }
 
   snapshot(): CatalogData {
-    return { version: 1, collections: [...this.data.collections], projects: [...this.data.projects] };
+    const snapshot: CatalogData = { version: 1, collections: [...this.data.collections], projects: [...this.data.projects] };
+    if (this.data.actions) {
+      snapshot.actions = [...this.data.actions];
+    }
+    return snapshot;
   }
 
   get projects(): readonly Project[] {
@@ -105,6 +133,20 @@ export class ProjectCatalog {
 
   get collections(): readonly Collection[] {
     return this.data.collections;
+  }
+
+  /** Buttons on every tile. */
+  get actions(): readonly TileAction[] {
+    return this.data.actions ?? [];
+  }
+
+  setActions(actions: readonly TileAction[] | undefined): void {
+    const cleaned = ProjectCatalog.cleanActions(actions);
+    if (cleaned) {
+      this.data.actions = cleaned;
+    } else {
+      delete this.data.actions;
+    }
   }
 
   getProject(id: string): Project | undefined {
@@ -145,6 +187,37 @@ export class ProjectCatalog {
     return updated;
   }
 
+  /** What `patch` turns `project` into; the caller saves it (logos may need files moved). */
+  bulkInput(project: Project, patch: BulkPatch): ProjectInput {
+    const input: ProjectInput = { ...project };
+    if (patch.collectionId !== undefined) {
+      input.collectionId = patch.collectionId !== null && this.getCollection(patch.collectionId) ? patch.collectionId : undefined;
+    }
+    if (patch.color !== undefined) {
+      input.color = patch.color ?? undefined;
+    }
+    if (patch.logo) {
+      input.logo = { kind: patch.logo };
+    }
+    if (patch.show) {
+      const show: TileVisibility = { ...project.show };
+      for (const element of TILE_ELEMENTS) {
+        const value = patch.show[element];
+        if (value === null) {
+          delete show[element];
+        } else if (typeof value === 'boolean') {
+          show[element] = value;
+        }
+      }
+      input.show = show;
+    }
+    if (patch.addActions?.length) {
+      const own = project.actions ?? [];
+      input.actions = [...own, ...patch.addActions.filter((a) => !own.some((o) => o.id === a.id))];
+    }
+    return input;
+  }
+
   removeProject(id: string): boolean {
     const before = this.data.projects.length;
     this.data.projects = this.data.projects.filter((p) => p.id !== id);
@@ -181,15 +254,8 @@ export class ProjectCatalog {
     return true;
   }
 
-  addCollection(name: string, color?: string, description?: string): Collection {
-    const collection: Collection = { id: this.newId(), name: name.trim() || 'Collection' };
-    const normalized = normalizeHexColor(color);
-    if (normalized) {
-      collection.color = normalized;
-    }
-    if (description?.trim()) {
-      collection.description = description.trim();
-    }
+  addCollection(name: string, color?: string, description?: string, actions?: TileAction[]): Collection {
+    const collection = ProjectCatalog.cleanCollection({ id: this.newId(), name, description, color, collapsed: false, actions });
     this.data.collections.push(collection);
     return collection;
   }
@@ -200,23 +266,14 @@ export class ProjectCatalog {
       return undefined;
     }
     const current = this.data.collections[index]!;
-    const merged: Collection = {
+    const merged = ProjectCatalog.cleanCollection({
       id,
       name: patch.name ?? current.name,
-      description: 'description' in patch ? patch.description?.trim() : current.description,
-      color: 'color' in patch ? normalizeHexColor(patch.color) : current.color,
-      collapsed: 'collapsed' in patch ? patch.collapsed : current.collapsed,
-    } as Collection;
-    if (!merged.color) {
-      delete merged.color;
-    }
-    if (!merged.description) {
-      delete merged.description;
-    }
-    if (!merged.collapsed) {
-      delete merged.collapsed;
-    }
-    merged.name = merged.name.trim() || 'Collection';
+      description: 'description' in patch ? patch.description : current.description,
+      color: 'color' in patch ? patch.color : current.color,
+      collapsed: 'collapsed' in patch ? patch.collapsed === true : current.collapsed === true,
+      actions: 'actions' in patch ? patch.actions : current.actions,
+    });
     this.data.collections[index] = merged;
     return merged;
   }
@@ -259,6 +316,34 @@ export class ProjectCatalog {
     return groups;
   }
 
+  /** Field order matches the Kotlin model, so both editions write byte-identical JSON. */
+  private static cleanCollection(raw: {
+    id: string;
+    name: string;
+    description: string | undefined;
+    color: string | undefined;
+    collapsed: boolean;
+    actions: unknown;
+  }): Collection {
+    const collection: Collection = { id: raw.id, name: raw.name.trim() || 'Collection' };
+    const description = raw.description?.trim();
+    if (description) {
+      collection.description = description;
+    }
+    const color = normalizeHexColor(raw.color);
+    if (color) {
+      collection.color = color;
+    }
+    if (raw.collapsed) {
+      collection.collapsed = true;
+    }
+    const actions = ProjectCatalog.cleanActions(raw.actions);
+    if (actions) {
+      collection.actions = actions;
+    }
+    return collection;
+  }
+
   private static cleanProject(raw: ProjectInput & { id: string }): Project {
     const project: Project = { id: raw.id, name: raw.name.trim() || ProjectCatalog.baseName(raw.path), path: raw.path };
     const description = raw.description?.trim();
@@ -288,6 +373,10 @@ export class ProjectCatalog {
     if (show) {
       project.show = show;
     }
+    const actions = ProjectCatalog.cleanActions(raw.actions);
+    if (actions) {
+      project.actions = actions;
+    }
     return project;
   }
 
@@ -303,12 +392,34 @@ export class ProjectCatalog {
     return Object.keys(show).length > 0 ? show : undefined;
   }
 
-  private static baseName(path: string): string {
+  /** Keeps buttons with a safe unique id, a name and a command, trimmed to sane lengths; `undefined` when none are left. */
+  static cleanActions(raw: unknown): TileAction[] | undefined {
+    if (!Array.isArray(raw)) {
+      return undefined;
+    }
+    const actions: TileAction[] = [];
+    for (const a of raw as Array<Partial<TileAction> | null>) {
+      if (actions.length >= ACTIONS_MAX) {
+        break;
+      }
+      if (!a || typeof a !== 'object' || typeof a.id !== 'string' || !SAFE_ID.test(a.id) || actions.some((x) => x.id === a.id)) {
+        continue;
+      }
+      const name = typeof a.name === 'string' ? a.name.trim().slice(0, ACTION_NAME_MAX) : '';
+      const command = typeof a.command === 'string' ? a.command.trim().slice(0, ACTION_COMMAND_MAX) : '';
+      if (name && command) {
+        actions.push({ id: a.id, name, command });
+      }
+    }
+    return actions.length > 0 ? actions : undefined;
+  }
+
+  static baseName(path: string): string {
     const parts = path.replace(/[\\/]+$/, '').split(/[\\/]/);
     return parts[parts.length - 1] || path;
   }
 
-  private static pathKey(path: string): string {
+  static pathKey(path: string): string {
     return path.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase();
   }
 }

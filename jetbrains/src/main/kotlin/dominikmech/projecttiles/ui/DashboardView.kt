@@ -29,6 +29,7 @@ import dominikmech.projecttiles.domain.Project
 import dominikmech.projecttiles.domain.ProjectCatalog
 import dominikmech.projecttiles.domain.ProjectInput
 import dominikmech.projecttiles.domain.ProjectMetadata
+import dominikmech.projecttiles.domain.TileAction
 import dominikmech.projecttiles.services.DirectoryWatcher
 import dominikmech.projecttiles.services.ProjectService
 import dominikmech.projecttiles.services.RefreshOptions
@@ -36,8 +37,18 @@ import dominikmech.projecttiles.settings.ProjectTilesSettings
 import dominikmech.projecttiles.storage.asJsonObjectOrNull
 import dominikmech.projecttiles.storage.boolean
 import dominikmech.projecttiles.storage.compactGson
+import dominikmech.projecttiles.storage.parseActions
+import dominikmech.projecttiles.storage.parseBulkPatch
 import dominikmech.projecttiles.storage.parseVisibility
 import dominikmech.projecttiles.storage.string
+import dominikmech.projecttiles.storage.stringOrNull
+import java.awt.datatransfer.DataFlavor
+import java.awt.dnd.DnDConstants
+import java.awt.dnd.DropTarget
+import java.awt.dnd.DropTargetAdapter
+import java.awt.dnd.DropTargetDragEvent
+import java.awt.dnd.DropTargetDropEvent
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Base64
@@ -54,6 +65,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
+import org.cef.callback.CefDragData
+import org.cef.handler.CefDragHandler
 import org.cef.handler.CefLoadHandlerAdapter
 
 /** The dashboard page in a JCEF browser; [ideProject] is null on the welcome screen. */
@@ -96,6 +109,7 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
                     }
                 }
             }, browser.cefBrowser)
+            installFolderDrop(browser)
             browser.loadHTML(WebAssets.page())
             ApplicationManager.getApplication().messageBus.connect(this).subscribe(LafManagerListener.TOPIC, LafManagerListener { applyTheme() })
         }
@@ -170,6 +184,8 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
         val state = JsonObject().apply {
             add("collections", compactGson.toJsonTree(service.collections))
             add("projects", compactGson.toJsonTree(projects))
+            add("actions", compactGson.toJsonTree(service.actions))
+            addProperty("host", "jetbrains")
             add("meta", compactGson.toJsonTree(meta))
             add(
                 "settings",
@@ -296,12 +312,31 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
                         color = patch.string("color"),
                         collectionId = patch.string("collectionId"),
                         show = patch.get("show")?.asJsonObjectOrNull()?.let { parseVisibility(it) },
+                        actions = parseActions(patch.get("actions")),
                     ),
                 )
             }
             "removeProject" -> service.removeProject(id ?: return)
             "moveProject" -> service.moveProject(id ?: return, m.string("collectionId"), m.get("index")?.asInt ?: 0)
-            "saveCollection" -> service.saveCollection(id, m.string("name") ?: "", m.string("color"), m.string("description"))
+            "bulkUpdate" -> {
+                val patch = m.get("patch")?.asJsonObjectOrNull() ?: return
+                service.bulkUpdate(strings(m, "ids"), parseBulkPatch(patch))
+            }
+            "bulkRemove" -> service.removeProjects(strings(m, "ids"))
+            "saveCollection" -> service.saveCollection(id, m.string("name") ?: "", m.string("color"), m.string("description"), parseActions(m.get("actions")))
+            "saveGlobalActions" -> service.saveGlobalActions(parseActions(m.get("actions")) ?: return)
+            "runAction" -> {
+                val project = service.getProject(id ?: return) ?: return
+                val action = service.actionsFor(project).find { it.id == m.string("actionId") } ?: return
+                runAction(project, action)
+            }
+            "addFolders" -> pickAndAddFolders(m.string("collectionId"))
+            "addSubfolders" -> addSubfolders(m.string("collectionId"))
+            "dropFolders" -> {
+                val folders = pathsFromDropped(strings(m, "uris")).ifEmpty { recentlyDraggedFiles() }
+                if (folders.isEmpty()) notify(WebAssets.strings().get("dropUnsupported").asString, NotificationType.INFORMATION)
+                else addFolders(folders, m.string("collectionId"))
+            }
             "removeCollection" -> service.removeCollection(id ?: return)
             "moveCollection" -> service.moveCollection(id ?: return, m.get("index")?.asInt ?: 0)
             "toggleCollection" -> service.toggleCollection(id ?: return, m.boolean("collapsed") == true)
@@ -330,6 +365,120 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
             }
         }
     }
+
+    /** Runs a tile button's command in a new terminal tab, in the project's folder. */
+    private suspend fun runAction(project: Project, action: TileAction) {
+        val folder = projectFolder(project.path)
+        if (folder == null) {
+            notify(WebAssets.strings().get("actionNoFolder").asString.replace("{project}", project.name), NotificationType.ERROR)
+            return
+        }
+        withContext(Dispatchers.EDT) {
+            val tab = "${action.name} · ${project.name}"
+            if (ideProject == null || !TerminalLauncher.run(ideProject, folder, tab, action.command)) ExternalTerminal.run(folder, action.command)
+        }
+    }
+
+    /** "Add Folders…" from the Tools menu. */
+    fun addFoldersFromMenu() = launch { pickAndAddFolders(null) }
+
+    /** "Add Subfolders of a Folder…" from the Tools menu. */
+    fun addSubfoldersFromMenu() = launch { addSubfolders(null) }
+
+    private suspend fun pickAndAddFolders(collectionId: String?) {
+        val folders = withContext(Dispatchers.EDT) { FolderImport.pickFolders(ideProject) }
+        addFolders(folders, collectionId)
+    }
+
+    private suspend fun addSubfolders(collectionId: String?) {
+        val strings = WebAssets.strings()
+        val parent = withContext(Dispatchers.EDT) { FolderImport.pickParent(ideProject) } ?: return
+        val candidates = runCatching { listSubfolders(parent) }.getOrDefault(emptyList()).filter { service.findByPath(it.path) == null }
+        if (candidates.isEmpty()) {
+            notify(strings.get("subfoldersNone").asString, NotificationType.INFORMATION)
+            return
+        }
+        val chosen = withContext(Dispatchers.EDT) {
+            FolderImport.choose(
+                ideProject,
+                strings.get("subfoldersTitle").asString,
+                candidates.map { FolderCandidate(it.path, if (it.isGit) "${it.name}  (git)" else it.name, it.isGit) },
+            )
+        }
+        if (chosen.isNotEmpty()) reportAdded(service.addFolders(chosen, collectionId), chosen.size)
+    }
+
+    /** One folder opens the project form (pre-filled); several are added straight away. */
+    private fun addFolders(candidates: List<String>, collectionId: String?) {
+        val folders = candidates.filter { projectFolder(it) != null }
+        when {
+            folders.size == 1 -> {
+                val folder = folders[0]
+                val existing = service.findByPath(folder)
+                if (existing != null) {
+                    showEditor(existing.id)
+                } else {
+                    val draft = mutableMapOf<String, Any?>("name" to ProjectCatalog.baseName(folder), "path" to folder, "logo" to Logo(Logo.AUTO))
+                    collectionId?.let { draft["collectionId"] = it }
+                    showEditor("new", draft)
+                }
+            }
+            folders.size > 1 -> reportAdded(service.addFolders(folders, collectionId), folders.size)
+        }
+    }
+
+    private fun reportAdded(added: Int, total: Int) {
+        val strings = WebAssets.strings()
+        val text = strings.get(if (added == total) "foldersAdded" else "foldersAddedSkipped").asString
+        notify(text.replace("{added}", added.toString()).replace("{skipped}", (total - added).toString()), NotificationType.INFORMATION)
+    }
+
+    private fun notify(text: String, type: NotificationType) =
+        Notifications.Bus.notify(Notification(NOTIFICATION_GROUP, "Project Tiles", text, type), ideProject)
+
+    /**
+     * Catches folders dropped from outside. With a windowed browser the page sees the drop but not the
+     * paths, so they are remembered when the drag enters; an off-screen browser never sees it, so a Swing
+     * drop target takes the files and asks the page which collection is under the pointer.
+     */
+    private fun installFolderDrop(browser: JBCefBrowser) {
+        browser.jbCefClient.addDragHandler(object : CefDragHandler {
+            override fun onDragEnter(cef: CefBrowser, dragData: CefDragData, mask: Int): Boolean {
+                if (dragData.isFile) {
+                    val names = java.util.Vector<String>()
+                    if (dragData.getFileNames(names)) draggedFiles = System.currentTimeMillis() to names.toList()
+                }
+                return false
+            }
+        }, browser.cefBrowser)
+        val component = browser.component
+        if (component.dropTarget != null) return
+        component.dropTarget = DropTarget(component, DnDConstants.ACTION_COPY, object : DropTargetAdapter() {
+            private fun check(e: DropTargetDragEvent) =
+                if (e.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) e.acceptDrag(DnDConstants.ACTION_COPY) else e.rejectDrag()
+
+            override fun dragEnter(e: DropTargetDragEvent) = check(e)
+            override fun dragOver(e: DropTargetDragEvent) = check(e)
+
+            override fun drop(e: DropTargetDropEvent) {
+                if (!e.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                    e.rejectDrop()
+                    return
+                }
+                e.acceptDrop(DnDConstants.ACTION_COPY)
+                val files = (e.transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<*>).orEmpty().filterIsInstance<File>().map { it.absolutePath }
+                e.dropComplete(true)
+                val cef = browser.cefBrowser
+                cef.executeJavaScript("window.__ptDropAt(${compactGson.toJson(files)}, ${e.location.x}, ${e.location.y});", cef.url, 0)
+            }
+        }, true)
+    }
+
+    @Volatile
+    private var draggedFiles: Pair<Long, List<String>>? = null
+
+    private fun recentlyDraggedFiles(): List<String> =
+        draggedFiles?.takeIf { System.currentTimeMillis() - it.first < 120_000 }?.second.orEmpty().also { draggedFiles = null }
 
     private suspend fun runGit(project: Project, op: String) {
         try {
@@ -375,6 +524,20 @@ class DashboardView(private val ideProject: IdeProject?) : Disposable {
             if (ideProject == null || !TerminalLauncher.open(ideProject, folder)) {
                 ExternalTerminal.open(folder)
             }
+        }
+    }
+
+    /** String items of an array field; anything else is ignored. */
+    private fun strings(m: JsonObject, key: String): List<String> =
+        m.get(key)?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { it.stringOrNull() }.orEmpty()
+
+    /** The folder a project lives in (a .code-workspace file's own folder), or null when it is not there. */
+    private fun projectFolder(projectPath: String): Path? {
+        val path = runCatching { Path.of(projectPath) }.getOrNull() ?: return null
+        return when {
+            path.isDirectory() -> path
+            path.toString().lowercase().endsWith(".code-workspace") && Files.isRegularFile(path) -> path.parent
+            else -> null
         }
     }
 

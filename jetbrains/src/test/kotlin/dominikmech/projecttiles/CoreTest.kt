@@ -1,13 +1,18 @@
 package dominikmech.projecttiles
 
+import com.google.gson.JsonParser
+import dominikmech.projecttiles.domain.BulkPatch
 import dominikmech.projecttiles.domain.CatalogData
+import dominikmech.projecttiles.domain.Collection
 import dominikmech.projecttiles.domain.Logo
 import dominikmech.projecttiles.domain.Project
 import dominikmech.projecttiles.domain.ProjectCatalog
 import dominikmech.projecttiles.domain.ProjectInput
+import dominikmech.projecttiles.domain.TileAction
 import dominikmech.projecttiles.domain.TileVisibility
 import dominikmech.projecttiles.domain.Unavailable
 import dominikmech.projecttiles.domain.clampGraphemes
+import dominikmech.projecttiles.domain.effectiveActions
 import dominikmech.projecttiles.domain.isShown
 import dominikmech.projecttiles.services.GitInfoProvider
 import dominikmech.projecttiles.services.LanguageDetector
@@ -16,7 +21,10 @@ import dominikmech.projecttiles.services.unavailability
 import dominikmech.projecttiles.services.volumeRoot
 import dominikmech.projecttiles.storage.CatalogRepository
 import dominikmech.projecttiles.storage.configRoot
+import dominikmech.projecttiles.storage.parseBulkPatch
 import dominikmech.projecttiles.storage.parseCatalog
+import dominikmech.projecttiles.ui.listSubfolders
+import dominikmech.projecttiles.ui.pathsFromDropped
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -97,8 +105,16 @@ class CoreTest {
     {
       "id": "c1",
       "name": "Work",
+      "description": "Client projects",
       "color": "#447099",
-      "collapsed": true
+      "collapsed": true,
+      "actions": [
+        {
+          "id": "a1",
+          "name": "Test",
+          "command": "npm test"
+        }
+      ]
     }
   ],
   "projects": [
@@ -120,7 +136,21 @@ class CoreTest {
       "show": {
         "description": false,
         "git": true
-      }
+      },
+      "actions": [
+        {
+          "id": "a2",
+          "name": "Deploy",
+          "command": "php artisan deploy --env=\"prod\""
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "a3",
+      "name": "Build",
+      "command": "npm run build"
     }
   ]
 }"""
@@ -142,6 +172,65 @@ class CoreTest {
         assertEquals(false, isShown(normalized.projects[0].show?.git, true))
         assertEquals(true, isShown(normalized.projects[0].show?.path, true))
         assertEquals(true, isShown(true, false))
+    }
+
+    @Test
+    fun `keeps only buttons with a safe unique id, a name and a command`() {
+        val data = parseCatalog(
+            """{"actions":[{"id":"g","name":" Build ","command":" make "},{"id":"g","name":"dup","command":"x"}],
+               "projects":[{"id":"p","path":"/p","actions":[{"id":"../x","name":"a","command":"b"},{"id":"ok","name":"","command":"b"},"junk",{"id":"n","name":5,"command":"c"}]}]}""",
+        )
+        val normalized = ProjectCatalog.normalize(data)
+        assertEquals(listOf(TileAction("g", "Build", "make")), normalized.actions)
+        assertNull(normalized.projects[0].actions)
+    }
+
+    @Test
+    fun `shows the global buttons, then the collection ones, then the project ones`() {
+        val c = Collection("c", "Work", actions = listOf(TileAction("c", "C", "c")))
+        val p = Project("p", "p", "/p", actions = listOf(TileAction("p", "P", "p")))
+        assertEquals(listOf("g", "c", "p"), effectiveActions(listOf(TileAction("g", "G", "g")), c, p).map { it.id })
+    }
+
+    @Test
+    fun `bulk changes touch only the fields in the patch`() {
+        val catalog = ProjectCatalog(null, ids())
+        val work = catalog.addCollection("Work")
+        val p = catalog.addProject(
+            ProjectInput(name = "a", path = "/a", color = "#111111", show = TileVisibility(path = true, git = false), actions = listOf(TileAction("own", "Own", "x"))),
+        )
+        val patch = BulkPatch(
+            setCollection = true, collectionId = work.id,
+            show = mapOf("git" to null, "languages" to false),
+            addActions = listOf(TileAction("new", "New", "y"), TileAction("own", "Dup", "z")),
+        )
+        val saved = catalog.updateProject(p.id, catalog.bulkInput(p, patch))!!
+        assertEquals(work.id, saved.collectionId)
+        assertEquals("#111111", saved.color)
+        assertEquals(TileVisibility(path = true, languages = false), saved.show)
+        assertEquals(listOf("own", "new"), saved.actions?.map { it.id })
+        val cleared = catalog.updateProject(p.id, catalog.bulkInput(saved, parseBulkPatch(JsonParser.parseString("""{"collectionId":null,"color":null,"logo":"auto"}""").asJsonObject)))!!
+        assertNull(cleared.collectionId)
+        assertNull(cleared.color)
+        assertEquals(Logo(Logo.AUTO), cleared.logo)
+    }
+
+    @Test
+    fun `turns dropped file URIs and paths into local paths like the VS Code extension`() {
+        assertEquals(
+            listOf("c:\\Dev\\My App", "C:\\Dev\\Other"),
+            pathsFromDropped(listOf("file:///c%3A/Dev/My%20App", "C:\\Dev\\Other", "# comment", "https://example.com", "relative"), windows = true),
+        )
+        assertEquals(listOf("\\\\nas\\code\\shop"), pathsFromDropped(listOf("file://nas/code/shop"), windows = true))
+        assertEquals(listOf("/home/a/dev/shop"), pathsFromDropped(listOf("file:///home/a/dev/shop", "/home/a/dev/shop"), windows = false))
+    }
+
+    @Test
+    fun `lists subfolders with git repositories first and skips hidden ones`() {
+        val root = tempDir()
+        for (dir in listOf("zeta", "alpha", "repo/.git", ".hidden", "node_modules")) Files.createDirectories(root.resolve(dir))
+        Files.writeString(root.resolve("file.txt"), "x")
+        assertEquals(listOf("repo" to true, "alpha" to false, "zeta" to false), listSubfolders(root).map { it.name to it.isGit })
     }
 
     @Test

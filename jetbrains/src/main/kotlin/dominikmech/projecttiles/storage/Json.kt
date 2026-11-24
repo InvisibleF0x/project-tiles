@@ -6,10 +6,12 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import dominikmech.projecttiles.domain.BulkPatch
 import dominikmech.projecttiles.domain.CatalogData
 import dominikmech.projecttiles.domain.Collection
 import dominikmech.projecttiles.domain.Logo
 import dominikmech.projecttiles.domain.Project
+import dominikmech.projecttiles.domain.TileAction
 import dominikmech.projecttiles.domain.TileVisibility
 
 /** Pretty-printed like `JSON.stringify(data, null, 2)`; null fields are omitted. */
@@ -31,6 +33,7 @@ fun parseCatalog(text: String): CatalogData {
             description = o.string("description"),
             color = o.string("color"),
             collapsed = o.boolean("collapsed"),
+            actions = parseActions(o.get("actions")),
         )
     }
     val projects = root.array("projects").mapNotNull { e ->
@@ -46,9 +49,41 @@ fun parseCatalog(text: String): CatalogData {
             color = o.string("color"),
             collectionId = o.string("collectionId"),
             show = o.get("show")?.asJsonObjectOrNull()?.let { parseVisibility(it) },
+            actions = parseActions(o.get("actions")),
         )
     }
-    return CatalogData(1, collections, projects)
+    return CatalogData(1, collections, projects, parseActions(root.get("actions")))
+}
+
+/** Tile buttons from a JSON array; entries that are not objects with string fields are skipped. */
+fun parseActions(element: JsonElement?): List<TileAction>? {
+    if (element == null || !element.isJsonArray) return null
+    return element.asJsonArray.mapNotNull { e ->
+        val o = e.asJsonObjectOrNull() ?: return@mapNotNull null
+        TileAction(o.string("id") ?: return@mapNotNull null, o.string("name") ?: "", o.string("command") ?: "")
+    }
+}
+
+/** A bulk change from the page: a key that is present (even as null) is applied, a missing one is left alone. */
+fun parseBulkPatch(o: JsonObject): BulkPatch {
+    val collection = o.get("collectionId")
+    val color = o.get("color")
+    val show = o.get("show")?.asJsonObjectOrNull()?.entrySet()?.mapNotNull { (key, value) ->
+        when {
+            value.isJsonNull -> key to null
+            value.isJsonPrimitive && value.asJsonPrimitive.isBoolean -> key to value.asBoolean
+            else -> null
+        }
+    }?.toMap().orEmpty()
+    return BulkPatch(
+        setCollection = collection != null,
+        collectionId = collection?.stringOrNull(),
+        setColor = color != null,
+        color = color?.stringOrNull(),
+        logo = o.string("logo"),
+        show = show,
+        addActions = parseActions(o.get("addActions")).orEmpty(),
+    )
 }
 
 /** Only boolean values count; anything else means "follow the global setting". */

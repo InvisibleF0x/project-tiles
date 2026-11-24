@@ -114,8 +114,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('projectTiles.addCurrentFolder', () => addFolder(currentFolder())),
     vscode.commands.registerCommand('projectTiles.addRecent', addRecent),
     vscode.commands.registerCommand('projectTiles.addFolder', async () => {
-      const picked = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false });
-      await addFolder(picked?.[0]?.fsPath);
+      await service.ensureLoaded();
+      await DashboardPanel.show(deps).pickAndAddFolders();
+    }),
+    vscode.commands.registerCommand('projectTiles.addSubfolders', async () => {
+      await service.ensureLoaded();
+      await DashboardPanel.show(deps).pickAndAddSubfolders();
     }),
     vscode.commands.registerCommand('projectTiles.refresh', async () => {
       await service.ensureLoaded();

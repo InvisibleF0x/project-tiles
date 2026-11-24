@@ -19,7 +19,12 @@ all sharing one project list.
 - **Collections** with colours and descriptions; drag & drop to reorder projects and collections
 - **Git branch and last commit** per repository, plus an **ahead/behind badge** (↓ to pull, ↑ to push, ✓ up to date)
   and **fetch / pull / push buttons** (pull is fast-forward only); tiles refresh on their own after pull / commit / checkout
-- **Add recent…**: pick any number of projects from the editor's recently opened list at once
+- **Your own tile buttons**: e.g. *Build* → `npm run build`; a click runs the command in a new terminal in the
+  project's folder. Set them for every tile, for a collection, or for one project
+- **Add many projects at once**: from the recently opened list, several folders, all subfolders of a folder
+  (git repositories pre-selected), or by dragging folders onto the dashboard (in VS Code hold Shift)
+- **Bulk edit**: tick tiles (Shift+click for a range) to move, remove, or change their colour, logo,
+  visibility and buttons together
 - Projects on a **disconnected drive** are greyed out with their last known details; **deleted folders** are flagged
 - Show or hide the path, description, languages and git status globally, and override that per tile;
   hidden parts are not computed at all
@@ -45,7 +50,8 @@ Click a tile to open the project in the current window; `Ctrl`+click (or *New wi
 | --- | --- |
 | `Project Tiles: Open Dashboard` | Opens the dashboard tab |
 | `Project Tiles: Add Current Folder as Project` | Adds the open folder / workspace and opens the edit form |
-| `Project Tiles: Add Folder as Project…` | Picks a folder from disk |
+| `Project Tiles: Add Folders as Projects…` | Picks one or more folders from disk |
+| `Project Tiles: Add Subfolders of a Folder…` | Lists the folders inside one, git repositories ticked |
 | `Project Tiles: Add Recent Projects…` | Adds several projects from the recently opened list |
 | `Project Tiles: Refresh Git & Language Info` | Forces a metadata refresh, including `git fetch` |
 | `Project Tiles: Open Data File (projects.json)` | Opens the catalog for manual editing or backup |
@@ -88,6 +94,9 @@ The project list and imported logos are stored in one folder shared by every edi
 No telemetry, no accounts. The only network traffic is git in your own repositories: `git fetch` when the
 dashboard opens and on manual refresh (turn it off with `projectTiles.fetchRemote`), and the fetch / pull / push
 you start yourself. Those run like your own git, with your credentials and hooks.
+
+Tile buttons are stored in `projects.json` along with the projects and run only when you click them, in a
+terminal you can see. Treat that file like a script: do not copy one from someone you do not trust.
 
 ## How it stays light
 

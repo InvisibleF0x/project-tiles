@@ -3,6 +3,7 @@ package dominikmech.projecttiles.services
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import dominikmech.projecttiles.domain.BulkPatch
 import dominikmech.projecttiles.domain.CatalogData
 import dominikmech.projecttiles.domain.Collection
 import dominikmech.projecttiles.domain.Logo
@@ -10,6 +11,8 @@ import dominikmech.projecttiles.domain.Project
 import dominikmech.projecttiles.domain.ProjectCatalog
 import dominikmech.projecttiles.domain.ProjectInput
 import dominikmech.projecttiles.domain.ProjectMetadata
+import dominikmech.projecttiles.domain.TileAction
+import dominikmech.projecttiles.domain.effectiveActions
 import dominikmech.projecttiles.domain.isShown
 import dominikmech.projecttiles.settings.ProjectTilesSettings
 import dominikmech.projecttiles.storage.CatalogRepository
@@ -95,7 +98,14 @@ class ProjectService(val scope: CoroutineScope) {
     val projects: List<Project> get() = catalog.projects.toList()
     val collections: List<Collection> get() = catalog.collections.toList()
 
+    /** Buttons on every tile. */
+    val actions: List<TileAction> get() = catalog.actions.toList()
+
     fun getProject(id: String): Project? = catalog.getProject(id)
+
+    /** The buttons a project's tile shows, in display order. */
+    fun actionsFor(project: Project): List<TileAction> =
+        effectiveActions(catalog.actions, project.collectionId?.let { catalog.getCollection(it) }, project)
 
     fun findByPath(folder: String): Project? = catalog.findProjectByPath(folder)
 
@@ -117,15 +127,66 @@ class ProjectService(val scope: CoroutineScope) {
         return saved
     }
 
-    fun removeProject(id: String) = mutate {
-        catalog.removeProject(id).also { if (it) logos.remove(id) }
+    fun removeProject(id: String) = removeProjects(listOf(id))
+
+    fun removeProjects(ids: List<String>) = mutate {
+        var changed = false
+        for (id in ids) {
+            if (catalog.removeProject(id)) {
+                logos.remove(id)
+                changed = true
+            }
+        }
+        changed
+    }
+
+    /** Adds every folder that is not on the dashboard yet; returns how many were added. */
+    fun addFolders(folders: List<String>, collectionId: String?): Int {
+        var added = 0
+        mutate {
+            val target = collectionId?.takeIf { catalog.getCollection(it) != null }
+            for (folder in folders) {
+                if (catalog.findProjectByPath(folder) != null) continue
+                val project = catalog.addProject(ProjectInput(name = ProjectCatalog.baseName(folder), path = folder, logo = Logo(Logo.AUTO), collectionId = target))
+                metadata.invalidate(project.path)
+                added++
+            }
+            added > 0
+        }
+        return added
+    }
+
+    /** Applies one change to several projects and saves once. */
+    fun bulkUpdate(ids: List<String>, patch: BulkPatch) = mutate {
+        var changed = false
+        for (id in ids) {
+            val project = catalog.getProject(id) ?: continue
+            val input = catalog.bulkInput(project, patch)
+            val logo = if (patch.logo == Logo.AUTO || patch.logo == Logo.NONE) materializeLogo(id, input.logo) else project.logo
+            val saved = catalog.updateProject(id, input.copy(logo = logo))!!
+            if (project.logo?.kind != saved.logo?.kind || project.show?.git != saved.show?.git || project.show?.languages != saved.show?.languages) {
+                metadata.invalidate(saved.path)
+            }
+            changed = true
+        }
+        changed
+    }
+
+    fun saveGlobalActions(actions: List<TileAction>) = mutate {
+        catalog.setActions(actions)
+        true
     }
 
     fun moveProject(id: String, collectionId: String?, index: Int) = mutate { catalog.moveProject(id, collectionId, index) }
 
-    fun saveCollection(id: String?, name: String, color: String?, description: String?) = mutate {
+    /** A null [actions] keeps the collection's buttons. */
+    fun saveCollection(id: String?, name: String, color: String?, description: String?, actions: List<TileAction>? = null) = mutate {
         val existing = id?.let { catalog.getCollection(it) }
-        if (existing != null) catalog.updateCollection(existing.id, name, color, description) else catalog.addCollection(name, color, description)
+        if (existing != null) {
+            catalog.updateCollection(existing.id, name, color, description, actions)
+        } else {
+            catalog.addCollection(name, color, description, actions)
+        }
         true
     }
 

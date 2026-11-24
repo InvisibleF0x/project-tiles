@@ -1,7 +1,9 @@
+import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { Project, ProjectMetadata } from '../domain/model';
+import { Project, ProjectMetadata, TileAction } from '../domain/model';
 import { Strings } from '../i18n';
+import { listSubfolders, pathsFromDropped } from '../services/FolderScan';
 import { GitWatcher } from '../services/git/GitWatcher';
 import { ProjectService } from '../services/ProjectService';
 import { RemoteOperation } from '../services/git/GitInfoProvider';
@@ -146,7 +148,16 @@ export class DashboardPanel implements vscode.Disposable {
       }
       return view;
     });
-    const state: DashboardState = { collections: [...service.collections], projects, meta, settings: settings(), canAddCurrent: current !== undefined, strings };
+    const state: DashboardState = {
+      collections: [...service.collections],
+      projects,
+      actions: [...service.actions],
+      meta,
+      settings: settings(),
+      canAddCurrent: current !== undefined,
+      host: 'vscode',
+      strings,
+    };
     if (this.pendingEdit) {
       state.editing = this.pendingEdit;
       if (this.pendingDraft) {
@@ -203,6 +214,14 @@ export class DashboardPanel implements vscode.Disposable {
         }
         return;
       }
+      case 'runAction': {
+        const project = service.getProject(message.id);
+        const action = project && service.actionsFor(project).find((a) => a.id === message.actionId);
+        if (project && action) {
+          await this.runAction(project, action);
+        }
+        return;
+      }
       case 'reveal': {
         const project = service.getProject(message.id);
         if (project) {
@@ -222,6 +241,7 @@ export class DashboardPanel implements vscode.Disposable {
           color: patch.color,
           collectionId: patch.collectionId,
           show: patch.show,
+          actions: patch.actions,
         });
         return;
       }
@@ -231,8 +251,23 @@ export class DashboardPanel implements vscode.Disposable {
       case 'moveProject':
         await service.moveProject(message.id, message.collectionId, message.index);
         return;
+      case 'bulkUpdate':
+        if (isStringArray(message.ids) && message.patch && typeof message.patch === 'object') {
+          await service.bulkUpdate(message.ids, message.patch);
+        }
+        return;
+      case 'bulkRemove':
+        if (isStringArray(message.ids)) {
+          await service.removeProjects(message.ids);
+        }
+        return;
       case 'saveCollection':
-        await service.saveCollection(message.id, message.name, message.color, message.description);
+        await service.saveCollection(message.id, message.name, message.color, message.description, Array.isArray(message.actions) ? message.actions : undefined);
+        return;
+      case 'saveGlobalActions':
+        if (Array.isArray(message.actions)) {
+          await service.saveGlobalActions(message.actions);
+        }
         return;
       case 'removeCollection':
         await service.removeCollection(message.id);
@@ -277,6 +312,21 @@ export class DashboardPanel implements vscode.Disposable {
       case 'addRecent':
         await vscode.commands.executeCommand('projectTiles.addRecent');
         return;
+      case 'addFolders':
+        await this.pickAndAddFolders(message.collectionId);
+        return;
+      case 'addSubfolders':
+        await this.pickAndAddSubfolders(message.collectionId);
+        return;
+      case 'dropFolders': {
+        const folders = isStringArray(message.uris) ? pathsFromDropped(message.uris) : [];
+        if (folders.length === 0) {
+          void vscode.window.showInformationMessage(this.deps.strings.dropUnsupported);
+          return;
+        }
+        await this.addFolders(folders, message.collectionId);
+        return;
+      }
       case 'git': {
         const project = service.getProject(message.id);
         if (project && isRemoteOperation(message.op)) {
@@ -285,6 +335,75 @@ export class DashboardPanel implements vscode.Disposable {
         return;
       }
     }
+  }
+
+  /** Runs a tile button's command in a new terminal opened in the project's folder. */
+  private async runAction(project: Project, action: TileAction): Promise<void> {
+    const folder = await projectFolder(project.path);
+    if (!folder) {
+      void vscode.window.showErrorMessage(this.deps.strings.actionNoFolder.replace('{project}', project.name));
+      return;
+    }
+    const terminal = vscode.window.createTerminal({ name: `${action.name} · ${project.name}`, cwd: folder });
+    terminal.show();
+    terminal.sendText(action.command);
+  }
+
+  async pickAndAddFolders(collectionId?: string): Promise<void> {
+    const picked = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: true });
+    if (picked?.length) {
+      await this.addFolders(picked.map((uri) => uri.fsPath), collectionId);
+    }
+  }
+
+  async pickAndAddSubfolders(collectionId?: string): Promise<void> {
+    const { service, strings } = this.deps;
+    const parent = (await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false }))?.[0]?.fsPath;
+    if (!parent) {
+      return;
+    }
+    const candidates = (await listSubfolders(parent)).filter((s) => !service.findByPath(s.path));
+    if (candidates.length === 0) {
+      void vscode.window.showInformationMessage(strings.subfoldersNone);
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(
+      candidates.map((s) => ({ label: s.isGit ? `$(repo) ${s.name}` : `$(folder) ${s.name}`, description: s.path, picked: s.isGit, folder: s.path })),
+      { canPickMany: true, matchOnDescription: true, placeHolder: strings.subfoldersTitle },
+    );
+    if (picked?.length) {
+      this.reportAdded(await service.addFolders(picked.map((p) => p.folder), collectionId), picked.length);
+    }
+  }
+
+  /** One folder opens the project form (pre-filled); several are added straight away. */
+  private async addFolders(candidates: string[], collectionId?: string): Promise<void> {
+    const { service } = this.deps;
+    const folders: string[] = [];
+    for (const candidate of candidates) {
+      if (await projectFolder(candidate)) {
+        folders.push(candidate);
+      }
+    }
+    if (folders.length === 1) {
+      const folder = folders[0]!;
+      const existing = service.findByPath(folder);
+      if (existing) {
+        DashboardPanel.show(this.deps, existing.id);
+      } else {
+        DashboardPanel.show(this.deps, 'new', { name: path.basename(folder), path: folder, logo: { kind: 'auto' }, ...(collectionId ? { collectionId } : {}) });
+      }
+      return;
+    }
+    if (folders.length > 1) {
+      this.reportAdded(await service.addFolders(folders, collectionId), folders.length);
+    }
+  }
+
+  private reportAdded(added: number, total: number): void {
+    const { strings } = this.deps;
+    const text = added === total ? strings.foldersAdded : strings.foldersAddedSkipped;
+    void vscode.window.showInformationMessage(text.replace('{added}', String(added)).replace('{skipped}', String(total - added)));
   }
 
   private async runGit(project: Project, op: RemoteOperation): Promise<void> {
@@ -336,6 +455,26 @@ function isMessage(m: unknown): m is WebviewToHost {
   }
   const id = (m as { id?: unknown }).id;
   return id === undefined || typeof id === 'string';
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string');
+}
+
+/**
+ * The folder a project lives in (a .code-workspace file's own folder), or undefined when it is not
+ * there; anything that is neither a folder nor a workspace file does not count.
+ */
+async function projectFolder(projectPath: string): Promise<string | undefined> {
+  try {
+    const stat = await fs.stat(projectPath);
+    if (stat.isDirectory()) {
+      return projectPath;
+    }
+    return projectPath.toLowerCase().endsWith('.code-workspace') ? path.dirname(projectPath) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isRemoteOperation(op: unknown): op is RemoteOperation {

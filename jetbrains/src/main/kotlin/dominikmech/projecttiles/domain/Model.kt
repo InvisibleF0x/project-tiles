@@ -28,7 +28,20 @@ data class Project(
     val collectionId: String? = null,
     /** Per-tile overrides of the global visibility settings; a null field follows the global setting. */
     val show: TileVisibility? = null,
+    /** Buttons only this tile has; collection and global ones are added in front of them. */
+    val actions: List<TileAction>? = null,
 )
+
+/** A button on a tile that runs [command] in the project's folder, in a new terminal. */
+data class TileAction(val id: String, val name: String, val command: String)
+
+const val ACTION_NAME_MAX = 40
+const val ACTION_COMMAND_MAX = 2000
+const val ACTIONS_MAX = 20
+
+/** Buttons shown on a tile: the ones for every project, then its collection's, then its own. */
+fun effectiveActions(global: List<TileAction>?, collection: Collection?, project: Project): List<TileAction> =
+    global.orEmpty() + collection?.actions.orEmpty() + project.actions.orEmpty()
 
 data class TileVisibility(
     val path: Boolean? = null,
@@ -48,6 +61,8 @@ data class Collection(
     val description: String? = null,
     val color: String? = null,
     val collapsed: Boolean? = null,
+    /** Buttons on every tile of this collection. */
+    val actions: List<TileAction>? = null,
 )
 
 data class CatalogData(
@@ -56,6 +71,8 @@ data class CatalogData(
     val collections: List<Collection> = emptyList(),
     /** List order is the display order within each collection. */
     val projects: List<Project> = emptyList(),
+    /** Buttons on every tile. */
+    val actions: List<TileAction>? = null,
 )
 
 const val LOGO_TEXT_MAX = 3

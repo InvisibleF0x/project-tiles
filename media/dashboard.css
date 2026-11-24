@@ -399,3 +399,95 @@ body.compact .footer-btn span { display: none; }
 .swatches input.native::-webkit-color-swatch { border: none; }
 
 .empty { color: var(--muted); padding: 48px 0; text-align: center; }
+.empty-hint { font-size: 0.85em; margin-top: 8px; opacity: 0.8; }
+
+/* Tile buttons (custom commands) */
+.tile-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.tile-btn {
+  padding: 2px 9px 2px 7px;
+  font-size: 0.78em;
+  gap: 4px;
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--tile-color, var(--vscode-button-background)) 16%, var(--vscode-input-background));
+  border: 1px solid color-mix(in srgb, var(--tile-color, var(--vscode-button-background)) 35%, transparent);
+  border-radius: 12px;
+  max-width: 100%;
+}
+.tile-btn span { overflow: hidden; text-overflow: ellipsis; }
+.tile-btn:hover { background: color-mix(in srgb, var(--tile-color, var(--vscode-button-background)) 30%, var(--vscode-input-background)); }
+.tile.offline .tile-btn, .tile.deleted .tile-btn { opacity: 0.5; pointer-events: none; }
+
+.action-rows { display: flex; flex-direction: column; gap: 6px; }
+.action-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 6px; align-items: center; }
+.action-row .acmd { font-family: var(--vscode-editor-font-family); }
+.add-action { align-self: flex-start; padding: 4px 10px; font-size: 0.9em; }
+.dialog .lead { margin: -6px 0 14px; color: var(--muted); }
+
+/* Selection and bulk changes */
+.tile .select {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 5px;
+  color: transparent;
+  background: var(--tile-bg);
+  border: 1px solid var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.tile:hover .select, .tile:focus-within .select, body.selecting .tile .select { opacity: 1; }
+.tile .select.on { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-button-background); }
+.tile.selected { border-color: var(--vscode-button-background); box-shadow: 0 0 0 2px var(--vscode-button-background); }
+body.selecting .tile:hover { transform: none; }
+.bulk-bar {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--vscode-button-background);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--vscode-button-background) 12%, var(--vscode-editor-background));
+}
+.bulk-bar .count { font-weight: 600; }
+.bulk-bar .spacer { flex: 1; }
+.bulk-bar select.move { width: auto; }
+
+/* Drop-down menu */
+.menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-menu-border, var(--border));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.menu-item { justify-content: flex-start; color: inherit; background: transparent; padding: 6px 10px; border-radius: 5px; }
+.menu-item:hover { background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-menu-selectionForeground, inherit); }
+.menu-note { font-size: 0.8em; color: var(--muted); padding: 6px 10px 4px; border-top: 1px solid var(--border); margin-top: 4px; max-width: 300px; }
+
+/* Dropping folders from outside */
+.collection.drop-target > .grid { outline: 2px dashed var(--accent); outline-offset: 6px; }
+.drop-label {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}

@@ -88,11 +88,15 @@ export class JsonFileCatalogRepository implements CatalogRepository {
   private static parse(text: string, location: string): CatalogData {
     try {
       const parsed = JSON.parse(text) as Partial<CatalogData>;
-      return {
+      const data: CatalogData = {
         version: 1,
         collections: Array.isArray(parsed.collections) ? parsed.collections : [],
         projects: Array.isArray(parsed.projects) ? parsed.projects : [],
       };
+      if (Array.isArray(parsed.actions)) {
+        data.actions = parsed.actions;
+      }
+      return data;
     } catch (error) {
       throw new Error(`Project Tiles: cannot parse ${location}: ${(error as Error).message}`);
     }

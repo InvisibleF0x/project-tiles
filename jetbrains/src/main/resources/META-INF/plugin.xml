@@ -8,7 +8,9 @@ A lightweight tile dashboard for your projects, in its own editor tab, in the Ho
   <li>Tiles with name, description and logo (emoji, image file, or an auto-detected <code>logo.png</code> / <code>icon.png</code>)</li>
   <li>Collections with colours; drag &amp; drop to reorder projects and collections</li>
   <li>Git branch, last commit, an ahead/behind badge and fetch / pull / push buttons per repository</li>
-  <li>Add several projects at once from the IDE's recent-projects list</li>
+  <li>Your own buttons on tiles: one click runs a command in the project's folder</li>
+  <li>Add many projects at once: from the recent-projects list, several folders, all subfolders of a folder, or by drag &amp; drop</li>
+  <li>Select several tiles to move, remove or edit them together</li>
   <li>Projects on a disconnected drive are greyed out; deleted folders are flagged</li>
   <li>Languages like on GitHub (weighted by bytes), with a manual override</li>
   <li>One project list shared with the Project Tiles extension for VS Code and its forks</li>
@@ -18,6 +20,9 @@ A lightweight tile dashboard for your projects, in its own editor tab, in the Ho
 If it saves you time, you can <a href="https://github.com/sponsors/InvisibleF0x">support it through GitHub Sponsors</a>.</p>
 ]]></description>
     <change-notes><![CDATA[
+<p>1.4.0: tile buttons that run your own commands in a terminal (for every tile, a collection or one project);
+add several folders at once, all subfolders of a folder, or by dragging folders onto the dashboard; bulk edit
+of selected tiles (collection, colour, logo, visibility, buttons).</p>
 <p>1.3.0: the dashboard opens in the Home window of 2026.3 IDEs (and the non-modal welcome screen of earlier
 ones) in place of the start page and agent prompt; it can be turned off in Settings | Tools | Project Tiles.</p>
 <p>1.2.0: per-project overrides for showing the path, description, languages and git status on its tile,
@@ -59,6 +64,10 @@ smaller buttons; "Add current folder" no longer shows on the welcome screen.</p>
                     text="Add Current Project" description="Add the open project to the dashboard"/>
             <action id="dominikmech.projecttiles.AddRecent" class="dominikmech.projecttiles.actions.AddRecentProjectsAction"
                     text="Add Recent Projects…" description="Add projects from the IDE's recent-projects list"/>
+            <action id="dominikmech.projecttiles.AddFolders" class="dominikmech.projecttiles.actions.AddFoldersAction"
+                    text="Add Folders…" description="Add one or more folders to the dashboard"/>
+            <action id="dominikmech.projecttiles.AddSubfolders" class="dominikmech.projecttiles.actions.AddSubfoldersAction"
+                    text="Add Subfolders of a Folder…" description="Add the projects inside a folder, git repositories pre-selected"/>
             <action id="dominikmech.projecttiles.Refresh" class="dominikmech.projecttiles.actions.RefreshAction"
                     text="Refresh Git &amp; Language Info" description="Force a metadata refresh"/>
             <action id="dominikmech.projecttiles.OpenDataFile" class="dominikmech.projecttiles.actions.OpenDataFileAction"

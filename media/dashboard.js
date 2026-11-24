@@ -15,6 +15,10 @@
   let drag;
   /** Git operation running per project id; kept across re-renders until the host reports it done. */
   const gitBusy = new Map();
+  /** Tiles picked for a bulk change; the last one clicked anchors Shift+click ranges. */
+  const selected = new Set();
+  /** @type {string | undefined} */
+  let anchorId;
 
   const SWATCHES = ['#e5534b', '#f0883e', '#d4a72c', '#57ab5a', '#39c5cf', '#539bf5', '#986ee2', '#c96198', '#8b949e'];
 
@@ -41,6 +45,10 @@
     recent: '<svg class="i" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>',
     warning: '<svg class="i s" viewBox="0 0 16 16"><path d="M8 2 1.5 13.5h13zM8 6.5v3.5M8 12h.01"/></svg>',
     offline: '<svg class="i s" viewBox="0 0 16 16"><rect x="2" y="9" width="12" height="4.5" rx="1"/><path d="M4.5 9 6 3h4l1.5 6M2 2l12 12"/></svg>',
+    play: '<svg class="i s" viewBox="0 0 16 16"><path d="M5 3.5v9l7-4.5z"/></svg>',
+    bolt: '<svg class="i" viewBox="0 0 16 16"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z"/></svg>',
+    boltS: '<svg class="i s" viewBox="0 0 16 16"><path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z"/></svg>',
+    close: '<svg class="i s" viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
   };
 
   const h = (/** @type {string} */ tag, /** @type {Record<string, any>} */ attrs = {}, /** @type {(Node|string|null|undefined)[]} */ children = []) => {
@@ -85,6 +93,7 @@
   function render() {
     if (!state) return;
     document.body.classList.toggle('compact', state.settings.tileSize === 'compact');
+    document.body.classList.toggle('selecting', selected.size > 0);
     document.body.style.setProperty('--cols', String(state.settings.columns || 3));
     const scrollY = window.scrollY;
     app.replaceChildren(renderHeader(), ...renderCollections());
@@ -102,16 +111,90 @@
       h('div', { class: 'spacer' }),
       canAddCurrent ? h('button', { html: ICONS.plus + s.addCurrent, onclick: () => post({ type: 'addCurrent' }) }) : null,
       h('button', { class: canAddCurrent ? 'secondary' : '', html: ICONS.recent + s.addRecent, onclick: () => post({ type: 'addRecent' }) }),
-      h('button', { class: 'secondary', html: ICONS.folder + s.addFolder, onclick: () => openProjectEditor(undefined, {}) }),
+      h('button', { class: 'secondary', html: ICONS.folder + s.addFolder + ICONS.chevron, onclick: (e) => openMenu(e.currentTarget, [
+        { label: s.pickFolders, run: () => post({ type: 'addFolders' }) },
+        { label: s.addSubfolders, run: () => post({ type: 'addSubfolders' }) },
+        { label: s.enterPath, run: () => openProjectEditor(undefined, {}) },
+        { note: dropHint() },
+      ]) }),
       h('button', { class: 'secondary', html: ICONS.plus + s.newCollection, onclick: () => openCollectionEditor(undefined) }),
+      h('button', { class: 'icon', title: s.globalButtons, html: ICONS.bolt, onclick: () => openGlobalActionsEditor() }),
       h('button', { class: 'icon refresh-btn' + (busy ? ' busy' : ''), title: busy ? s.refreshing : s.refresh, html: ICONS.refresh, onclick: () => post({ type: 'refresh' }) }),
+      renderBulkBar(),
     ]);
+  }
+
+  const dropHint = () => (state && state.host === 'vscode' ? S().dropHintVscode : S().dropHint);
+
+  /** Bar with what can be done to the selected tiles; only while something is selected. */
+  function renderBulkBar() {
+    if (!selected.size) return null;
+    const s = S();
+    const st = /** @type {NonNullable<typeof state>} */ (state);
+    const ids = () => [...selected];
+    const move = h('select', { class: 'move', title: s.moveTo, onchange: () => {
+      if (move.value === '__keep') return;
+      post({ type: 'bulkUpdate', ids: ids(), patch: { collectionId: move.value || null } });
+    } }, [
+      h('option', { value: '__keep' }, [s.moveTo]),
+      h('option', { value: '' }, [s.noCollection]),
+      ...st.collections.map((c) => h('option', { value: c.id }, [c.name])),
+    ]);
+    return h('div', { class: 'bulk-bar' }, [
+      h('span', { class: 'count' }, [s.selectedCount.replace('{n}', String(selected.size))]),
+      h('button', { class: 'secondary', onclick: () => { st.projects.filter(matches).forEach((p) => selected.add(p.id)); render(); } }, [s.selectAll]),
+      h('div', { class: 'spacer' }),
+      h('button', { html: ICONS.edit + s.bulkEdit, onclick: () => openBulkEditor() }),
+      move,
+      h('button', { class: 'secondary', html: ICONS.trash + s.removeSelected, onclick: () => confirmDialog(s.removeSelectedConfirm.replace('{n}', String(selected.size)), () => {
+        post({ type: 'bulkRemove', ids: ids() });
+        selected.clear();
+        render();
+      }) }),
+      iconBtn('close', s.clearSelection, () => { selected.clear(); render(); }),
+    ]);
+  }
+
+  /** Selects or unselects a tile; with `range`, everything between the last clicked tile and this one. */
+  function toggleSelect(id, range) {
+    const order = [...app.querySelectorAll('.tile')].map((t) => /** @type {HTMLElement} */ (t).dataset.id);
+    const from = anchorId ? order.indexOf(anchorId) : -1;
+    const to = order.indexOf(id);
+    if (range && from >= 0 && to >= 0) {
+      for (const x of order.slice(Math.min(from, to), Math.max(from, to) + 1)) if (x) selected.add(x);
+    } else if (selected.has(id)) {
+      selected.delete(id);
+    } else {
+      selected.add(id);
+    }
+    anchorId = id;
+    render();
+  }
+
+  /** @type {HTMLElement | undefined} */
+  let menu;
+  function closeMenu() {
+    if (menu) { menu.remove(); menu = undefined; }
+    document.removeEventListener('mousedown', closeMenuOutside, true);
+  }
+  function closeMenuOutside(/** @type {MouseEvent} */ e) { if (menu && !menu.contains(/** @type {Node} */ (e.target))) closeMenu(); }
+  /** Small drop-down under `anchor`; items are actions, or plain notes. */
+  function openMenu(anchor, items) {
+    closeMenu();
+    const r = anchor.getBoundingClientRect();
+    menu = h('div', { class: 'menu' }, items.map((it) => it.note
+      ? h('div', { class: 'menu-note' }, [it.note])
+      : h('button', { class: 'menu-item', onclick: (e) => { e.stopPropagation(); closeMenu(); it.run(); } }, [it.label])));
+    document.body.append(menu);
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+    document.addEventListener('mousedown', closeMenuOutside, true);
   }
 
   function renderCollections() {
     const st = /** @type {NonNullable<typeof state>} */ (state);
     if (st.projects.length === 0 && st.collections.length === 0) {
-      return [h('div', { class: 'empty' }, [S().empty])];
+      return [h('div', { class: 'empty' }, [S().empty, h('div', { class: 'empty-hint' }, [dropHint()])])];
     }
     const groups = st.collections.map((c) => ({ collection: c, projects: st.projects.filter((p) => p.collectionId === c.id) }));
     groups.push({ collection: /** @type {any} */ (undefined), projects: st.projects.filter((p) => !p.collectionId) });
@@ -185,19 +268,28 @@
     const collection = st.collections.find((c) => c.id === p.collectionId);
     const tileColor = p.color || (collection && collection.color) || '';
     const meta = st.meta[p.id];
+    const isSelected = selected.has(p.id);
+    const actions = [...(st.actions || []), ...((collection && collection.actions) || []), ...(p.actions || [])];
     const tile = h('div', {
-      class: 'tile' + (p.isCurrent ? ' current' : ''),
+      class: 'tile' + (p.isCurrent ? ' current' : '') + (isSelected ? ' selected' : ''),
       'data-id': p.id,
       'data-current': s.current,
       tabindex: '0',
       draggable: 'true',
       style: tileColor ? `--tile-color:${tileColor}` : '',
       title: p.path,
-      onclick: (e) => post({ type: 'open', id: p.id, newWindow: st.settings.openInNewWindow !== (e.ctrlKey || e.metaKey) }),
-      onkeydown: (e) => { if (e.key === 'Enter') post({ type: 'open', id: p.id, newWindow: st.settings.openInNewWindow !== e.ctrlKey }); },
+      onclick: (e) => {
+        if (selected.size) { toggleSelect(p.id, e.shiftKey); return; }
+        post({ type: 'open', id: p.id, newWindow: st.settings.openInNewWindow !== (e.ctrlKey || e.metaKey) });
+      },
+      onkeydown: (e) => {
+        if (e.key === ' ' && e.target === tile) { e.preventDefault(); toggleSelect(p.id, e.shiftKey); return; }
+        if (e.key === 'Enter' && e.target === tile) post({ type: 'open', id: p.id, newWindow: st.settings.openInNewWindow !== e.ctrlKey });
+      },
       ondragstart: (e) => { drag = { kind: 'project', id: p.id }; e.dataTransfer.effectAllowed = 'move'; requestAnimationFrame(() => tile.classList.add('dragging')); },
       ondragend: () => { drag = undefined; tile.classList.remove('dragging'); document.querySelectorAll('.drag-over').forEach((g) => g.classList.remove('drag-over')); },
     }, [
+      h('button', { class: 'select' + (isSelected ? ' on' : ''), title: s.selectHint, html: ICONS.check, onclick: (e) => { e.stopPropagation(); toggleSelect(p.id, e.shiftKey); } }),
       h('div', { class: 'tile-top' }, [
         renderLogo(p),
         h('div', { class: 'tile-title' }, [
@@ -207,6 +299,12 @@
       ]),
       p.description && shown(p, 'description') ? h('div', { class: 'desc' }, [p.description]) : null,
       h('div', { class: 'meta' }),
+      actions.length ? h('div', { class: 'tile-buttons' }, actions.map((a) => h('button', {
+        class: 'tile-btn',
+        title: a.command,
+        html: ICONS.play + `<span>${escapeHtml(a.name)}</span>`,
+        onclick: (e) => { e.stopPropagation(); post({ type: 'runAction', id: p.id, actionId: a.id }); },
+      }))) : null,
       h('div', { class: 'tile-footer' }, [
         footerBtn('here', s.openCurrentWindow, () => post({ type: 'open', id: p.id, newWindow: false })),
         footerBtn('window', s.openNewWindow, () => post({ type: 'open', id: p.id, newWindow: true })),
@@ -214,6 +312,7 @@
         h('div', { class: 'git-actions' }),
       ]),
       h('div', { class: 'tile-actions' }, [
+        iconBtn('boltS', s.newButton, () => openQuickAction(p)),
         iconBtn('reveal', s.reveal, () => post({ type: 'reveal', id: p.id })),
         iconBtn('edit', s.edit, () => openProjectEditor(p.id, p)),
         iconBtn('trash', s.remove, () => confirmDialog(s.removeProjectConfirm, () => post({ type: 'removeProject', id: p.id }))),
@@ -355,7 +454,12 @@
     const first = dialog.querySelector('input, textarea, select');
     if (first) first.focus();
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay) closeDialog(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (menu) closeMenu();
+    else if (overlay) closeDialog();
+    else if (selected.size) { selected.clear(); render(); }
+  });
 
   function confirmDialog(text, onYes) {
     const s = S();
@@ -411,8 +515,17 @@
       for (const { element, select } of visibility) if (select.value) show[element] = select.value === 'show';
       return Object.keys(show).length ? show : undefined;
     };
+    const actionsField = actionsEditor(p.actions);
+    const inherited = h('div', { class: 'hint' });
+    /** Buttons this tile gets anyway, from "every project" and from the chosen collection. */
+    function syncInherited() {
+      const c = st.collections.find((x) => x.id === collectionSelect.value);
+      const list = [...(st.actions || []).map((a) => `${a.name} (${s.scopeAllShort})`), ...((c && c.actions) || []).map((a) => `${a.name} (${c ? c.name : ''})`)];
+      inherited.textContent = list.length ? `${s.inheritedButtons} ${list.join(', ')}` : '';
+    }
 
     function syncLogo() {
+      syncInherited();
       for (const [kind, radio] of Object.entries(radios)) radio.checked = kind === logo.kind;
       const previewLogo = { name: nameInput.value || baseName(pathInput.value), logo: { kind: logo.kind, value: logo.kind === 'emoji' ? emojiInput.value : logo.value }, logoUri: logo.kind === 'image' ? logoUri : '' };
       if (logo.kind === 'auto' && p.logo && p.logo.kind === 'auto') previewLogo.logoUri = p.logoUri;
@@ -451,6 +564,7 @@
         h('label', {}, [s.tileElements]),
         h('div', { class: 'visibility' }, visibility.map(({ element, select }) => h('label', {}, [h('span', {}, [s[element]]), select]))),
       ]),
+      h('div', { class: 'field' }, [h('label', {}, [s.buttons]), actionsField, inherited, h('div', { class: 'hint' }, [s.buttonsHint])]),
       h('div', { class: 'buttons' }, [
         id ? h('button', { class: 'danger left', onclick: () => confirmDialog(s.removeProjectConfirm, () => post({ type: 'removeProject', id })) }, [s.remove]) : null,
         h('button', { class: 'secondary', onclick: closeDialog }, [s.cancel]),
@@ -464,6 +578,7 @@
             logo: { kind: logo.kind, value: logo.kind === 'emoji' ? emojiInput.value : logo.value },
             languages: splitList(langInput.value), color: picker.value || undefined, collectionId: collectionSelect.value || undefined,
             show: visibilityPatch(),
+            actions: actionsField.value,
           } });
           closeDialog();
         } }, [s.save]),
@@ -515,13 +630,150 @@
     const nameInput = h('input', { value: c ? c.name : '' });
     const descInput = h('textarea', { value: (c && c.description) || '', rows: 2 });
     const picker = colorPicker(c && c.color);
-    const save = () => { post({ type: 'saveCollection', id: c ? c.id : undefined, name: nameInput.value, color: picker.value || undefined, description: descInput.value.trim() || undefined }); closeDialog(); };
+    const actionsField = actionsEditor(c && c.actions);
+    const save = () => {
+      post({ type: 'saveCollection', id: c ? c.id : undefined, name: nameInput.value, color: picker.value || undefined, description: descInput.value.trim() || undefined, actions: actionsField.value });
+      closeDialog();
+    };
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-    showDialog(h('div', { class: 'dialog small' }, [
+    showDialog(h('div', { class: 'dialog' }, [
       h('h3', {}, [c ? s.editCollection : s.newCollection]),
       h('div', { class: 'field' }, [h('label', {}, [s.collectionName]), nameInput]),
       h('div', { class: 'field' }, [h('label', {}, [s.collectionDescription]), descInput]),
       h('div', { class: 'field' }, [h('label', {}, [s.color]), picker]),
+      h('div', { class: 'field' }, [h('label', {}, [s.buttons]), actionsField, h('div', { class: 'hint' }, [s.collectionButtonsHint])]),
+      h('div', { class: 'buttons' }, [h('button', { class: 'secondary', onclick: closeDialog }, [s.cancel]), h('button', { onclick: save }, [s.save])]),
+    ]));
+  }
+
+  /**
+   * Editable list of tile buttons (name + command). Read the result with `.value`;
+   * rows missing a name or a command are left out.
+   * @param {import('../src/domain/model').TileAction[] | undefined} initial
+   */
+  function actionsEditor(initial) {
+    const s = S();
+    const list = (initial || []).map((a) => ({ ...a }));
+    const box = h('div', { class: 'action-rows' });
+    const draw = (focusLast) => {
+      box.replaceChildren(
+        ...list.map((a, i) => h('div', { class: 'action-row' }, [
+          h('input', { class: 'aname', value: a.name, placeholder: s.buttonNamePlaceholder, maxLength: 40, oninput: (e) => { a.name = e.target.value; } }),
+          h('input', { class: 'acmd', value: a.command, placeholder: s.buttonCommandPlaceholder, spellcheck: false, oninput: (e) => { a.command = e.target.value; } }),
+          iconBtn('trash', s.removeButton, () => { list.splice(i, 1); draw(false); }),
+        ])),
+        list.length < 20 ? h('button', { class: 'secondary add-action', html: ICONS.plus + s.addButton, onclick: () => {
+          list.push({ id: crypto.randomUUID(), name: '', command: '' });
+          draw(true);
+        } }) : null,
+      );
+      if (focusLast) {
+        const names = box.querySelectorAll('.aname');
+        const last = /** @type {HTMLInputElement | undefined} */ (names[names.length - 1]);
+        if (last) last.focus();
+      }
+    };
+    draw(false);
+    Object.defineProperty(box, 'value', {
+      get: () => list.filter((a) => a.name.trim() && a.command.trim()).map((a) => ({ id: a.id, name: a.name.trim(), command: a.command.trim() })),
+    });
+    return box;
+  }
+
+  /** Buttons for every tile. */
+  function openGlobalActionsEditor() {
+    const s = S();
+    const st = /** @type {NonNullable<typeof state>} */ (state);
+    const editor = actionsEditor(st.actions);
+    showDialog(h('div', { class: 'dialog' }, [
+      h('h3', {}, [s.globalButtons]),
+      h('p', { class: 'lead' }, [s.globalButtonsHint]),
+      h('div', { class: 'field' }, [editor, h('div', { class: 'hint' }, [s.buttonsHint])]),
+      h('div', { class: 'buttons' }, [
+        h('button', { class: 'secondary', onclick: closeDialog }, [s.cancel]),
+        h('button', { onclick: () => { post({ type: 'saveGlobalActions', actions: editor.value }); closeDialog(); } }, [s.save]),
+      ]),
+    ]));
+  }
+
+  /** The tile's "+ button" shortcut: one button, for this project, its collection or every project. */
+  function openQuickAction(p) {
+    const s = S();
+    const st = /** @type {NonNullable<typeof state>} */ (state);
+    const collection = st.collections.find((c) => c.id === p.collectionId);
+    const nameInput = h('input', { placeholder: s.buttonNamePlaceholder, maxLength: 40 });
+    const commandInput = h('input', { placeholder: s.buttonCommandPlaceholder, spellcheck: false });
+    const scope = h('select', {}, [
+      h('option', { value: 'project' }, [s.scopeProject.replace('{project}', p.name)]),
+      collection ? h('option', { value: 'collection' }, [s.scopeCollection.replace('{collection}', collection.name)]) : null,
+      h('option', { value: 'all' }, [s.scopeAll]),
+    ]);
+    const error = h('div', { class: 'error' });
+    const save = () => {
+      const action = { id: crypto.randomUUID(), name: nameInput.value.trim(), command: commandInput.value.trim() };
+      if (!action.name || !action.command) { error.textContent = s.buttonRequired; return; }
+      if (scope.value === 'all') {
+        post({ type: 'saveGlobalActions', actions: [...(st.actions || []), action] });
+      } else if (scope.value === 'collection' && collection) {
+        post({ type: 'saveCollection', id: collection.id, name: collection.name, color: collection.color, description: collection.description, actions: [...(collection.actions || []), action] });
+      } else {
+        post({ type: 'bulkUpdate', ids: [p.id], patch: { addActions: [action] } });
+      }
+      closeDialog();
+    };
+    commandInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+    showDialog(h('div', { class: 'dialog small' }, [
+      h('h3', {}, [s.newButton]),
+      h('div', { class: 'field' }, [h('label', {}, [s.buttonName]), nameInput]),
+      h('div', { class: 'field' }, [h('label', {}, [s.buttonCommand]), commandInput, h('div', { class: 'hint' }, [s.buttonsHint])]),
+      h('div', { class: 'field' }, [h('label', {}, [s.buttonScope]), scope, error]),
+      h('div', { class: 'buttons' }, [h('button', { class: 'secondary', onclick: closeDialog }, [s.cancel]), h('button', { onclick: save }, [s.save])]),
+    ]));
+  }
+
+  /** One form that changes every selected project; fields left at "Keep as is" are not touched. */
+  function openBulkEditor() {
+    const s = S();
+    const st = /** @type {NonNullable<typeof state>} */ (state);
+    const ids = [...selected];
+    const keep = () => h('option', { value: '' }, [s.keep]);
+    const collectionSelect = h('select', {}, [keep(), h('option', { value: '__none' }, [s.noCollection]), ...st.collections.map((c) => h('option', { value: c.id }, [c.name]))]);
+    const picker = colorPicker('');
+    const colorMode = h('select', { onchange: () => { picker.style.display = colorMode.value === 'set' ? '' : 'none'; } }, [
+      keep(), h('option', { value: 'set' }, [s.setColor]), h('option', { value: 'clear' }, [s.clearColor]),
+    ]);
+    picker.style.display = 'none';
+    const logoSelect = h('select', {}, [keep(), h('option', { value: 'auto' }, [s.logoAuto]), h('option', { value: 'none' }, [s.logoNone])]);
+    const visibility = Object.keys(TILE_ELEMENTS).map((element) => ({
+      element,
+      select: h('select', {}, [keep(), h('option', { value: 'default' }, [s.followGlobal]), h('option', { value: 'show' }, [s.shown]), h('option', { value: 'hide' }, [s.hidden])]),
+    }));
+    const actionsField = actionsEditor([]);
+    const save = () => {
+      /** @type {import('../src/domain/ProjectCatalog').BulkPatch} */
+      const patch = {};
+      if (collectionSelect.value) patch.collectionId = collectionSelect.value === '__none' ? null : collectionSelect.value;
+      if (colorMode.value === 'set' && picker.value) patch.color = picker.value;
+      if (colorMode.value === 'clear') patch.color = null;
+      if (logoSelect.value === 'auto' || logoSelect.value === 'none') patch.logo = logoSelect.value;
+      const show = {};
+      for (const { element, select } of visibility) if (select.value) show[element] = select.value === 'default' ? null : select.value === 'show';
+      if (Object.keys(show).length) patch.show = show;
+      const add = actionsField.value;
+      if (add.length) patch.addActions = add;
+      if (Object.keys(patch).length) post({ type: 'bulkUpdate', ids, patch });
+      closeDialog();
+    };
+    showDialog(h('div', { class: 'dialog' }, [
+      h('h3', {}, [s.editSelected.replace('{n}', String(ids.length))]),
+      h('div', { class: 'field' }, [h('label', {}, [s.collection]), collectionSelect]),
+      h('div', { class: 'field' }, [h('label', {}, [s.color]), colorMode, picker]),
+      h('div', { class: 'field' }, [h('label', {}, [s.logo]), logoSelect]),
+      h('div', { class: 'field' }, [
+        h('label', {}, [s.tileElements]),
+        h('div', { class: 'visibility' }, visibility.map(({ element, select }) => h('label', {}, [h('span', {}, [s[element]]), select]))),
+      ]),
+      h('div', { class: 'field' }, [h('label', {}, [s.addButtons]), actionsField, h('div', { class: 'hint' }, [s.bulkButtonsHint])]),
       h('div', { class: 'buttons' }, [h('button', { class: 'secondary', onclick: closeDialog }, [s.cancel]), h('button', { onclick: save }, [s.save])]),
     ]));
   }
@@ -535,12 +787,84 @@
   /** @type {((m: any) => void) | undefined} */
   let pendingFolderHandler;
 
+  /** Drag data types that can carry folders from the file explorer or the system; tiles and collections set `drag` instead. */
+  const FILE_TYPES = ['files', 'text/uri-list', 'application/vnd.code.uri-list', 'resourceurls', 'codefiles'];
+  const isExternalDrag = (/** @type {DragEvent} */ e) => !drag && !!e.dataTransfer && [...e.dataTransfer.types].some((t) => FILE_TYPES.includes(t.toLowerCase()));
+
+  /** Everything in the drag data that looks like a file URI or a path; the host keeps only real folders. */
+  function droppedItems(/** @type {DataTransfer} */ dt) {
+    const out = [];
+    for (const type of dt.types) {
+      if (type.toLowerCase() === 'files') continue;
+      let data = '';
+      try { data = dt.getData(type); } catch { data = ''; }
+      if (!data) continue;
+      const text = data.trim();
+      if (text.startsWith('[')) {
+        try {
+          for (const x of JSON.parse(text)) {
+            if (typeof x === 'string') out.push(x);
+            else if (x && typeof x === 'object' && typeof x.fsPath === 'string') out.push(x.fsPath);
+            else if (x && typeof x === 'object' && typeof x.external === 'string') out.push(x.external);
+          }
+        } catch { /* not JSON after all */ }
+      } else {
+        out.push(...text.split(/\r?\n/));
+      }
+    }
+    for (const f of dt.files || []) if (/** @type {any} */ (f).path) out.push(/** @type {any} */ (f).path);
+    return [...new Set(out.map((x) => x.trim()).filter((x) => x && !x.startsWith('#')))];
+  }
+
+  /** Collection under the pointer, or '' for the "other projects" group / anywhere else. */
+  const collectionAt = (/** @type {EventTarget | null} */ target) => {
+    const section = target instanceof Element ? target.closest('section.collection') : null;
+    return section ? /** @type {HTMLElement} */ (section).dataset.collection || '' : '';
+  };
+
+  let dropLabel;
+  function showDropTarget(/** @type {DragEvent} */ e) {
+    const s = S();
+    const id = collectionAt(e.target);
+    document.querySelectorAll('.collection.drop-target').forEach((x) => x.classList.remove('drop-target'));
+    const section = e.target instanceof Element ? e.target.closest('section.collection') : null;
+    if (section) section.classList.add('drop-target');
+    const c = state && state.collections.find((x) => x.id === id);
+    const text = c ? s.dropInto.replace('{collection}', c.name) : s.dropHere;
+    if (!dropLabel) { dropLabel = h('div', { class: 'drop-label' }); document.body.append(dropLabel); }
+    dropLabel.textContent = text;
+  }
+  function hideDropTarget() {
+    document.querySelectorAll('.collection.drop-target').forEach((x) => x.classList.remove('drop-target'));
+    if (dropLabel) { dropLabel.remove(); dropLabel = undefined; }
+  }
+  document.addEventListener('dragover', (e) => {
+    if (!state || !isExternalDrag(e)) return;
+    e.preventDefault();
+    /** @type {DataTransfer} */ (e.dataTransfer).dropEffect = 'copy';
+    showDropTarget(e);
+  });
+  document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) hideDropTarget(); });
+  document.addEventListener('drop', (e) => {
+    if (!state || !isExternalDrag(e)) return;
+    e.preventDefault();
+    const collectionId = collectionAt(e.target);
+    hideDropTarget();
+    post({ type: 'dropFolders', uris: droppedItems(/** @type {DataTransfer} */ (e.dataTransfer)), collectionId: collectionId || undefined });
+  });
+  /** JetBrains: the IDE caught a folder drop itself, with real paths; this only finds the collection under the drop point. */
+  /** @type {any} */ (window).__ptDropAt = (/** @type {string[]} */ paths, /** @type {number} */ x, /** @type {number} */ y) => {
+    post({ type: 'dropFolders', uris: paths, collectionId: collectionAt(document.elementFromPoint(x, y)) || undefined });
+  };
+
   window.addEventListener('message', (event) => {
     /** @type {import('../src/webview/protocol').HostToWebview} */
     const msg = event.data;
     switch (msg.type) {
       case 'state':
         state = msg.state;
+        for (const id of [...selected]) if (!msg.state.projects.some((p) => p.id === id)) selected.delete(id);
+        closeMenu();
         render();
         if (msg.state.editing === 'new') openProjectEditor(undefined, msg.state.draft || {});
         else if (msg.state.editing) {

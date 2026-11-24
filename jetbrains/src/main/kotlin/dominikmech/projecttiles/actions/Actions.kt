@@ -36,6 +36,18 @@ class AddCurrentProjectAction : ProjectAction() {
     }
 }
 
+class AddFoldersAction : ProjectAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        DashboardOpener.getInstance(e.project ?: return).open()?.addFoldersFromMenu()
+    }
+}
+
+class AddSubfoldersAction : ProjectAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        DashboardOpener.getInstance(e.project ?: return).open()?.addSubfoldersFromMenu()
+    }
+}
+
 class AddRecentProjectsAction : DumbAwareAction() {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 

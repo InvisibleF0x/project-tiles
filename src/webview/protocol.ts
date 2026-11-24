@@ -1,4 +1,5 @@
-import { Collection, Logo, Project, ProjectMetadata, TileVisibility } from '../domain/model';
+import { Collection, Logo, Project, ProjectMetadata, TileAction, TileVisibility } from '../domain/model';
+import { BulkPatch } from '../domain/ProjectCatalog';
 import { Strings } from '../i18n';
 import { RemoteOperation } from '../services/git/GitInfoProvider';
 
@@ -23,10 +24,14 @@ export interface DashboardSettings {
 export interface DashboardState {
   collections: Collection[];
   projects: ProjectView[];
+  /** Buttons on every tile. */
+  actions: TileAction[];
   meta: Record<string, ProjectMetadata>;
   settings: DashboardSettings;
   /** False when no folder or project is open here (e.g. on a welcome screen). */
   canAddCurrent: boolean;
+  /** Which editor hosts the page; drag & drop hints differ. */
+  host: 'vscode' | 'jetbrains';
   strings: Strings;
   /** Id of the project whose editor should be open, or 'new' for a fresh one. */
   editing?: string;
@@ -51,17 +56,22 @@ export interface ProjectPatch {
   color: string | undefined;
   collectionId: string | undefined;
   show: TileVisibility | undefined;
+  actions: TileAction[];
 }
 
 export type WebviewToHost =
   | { type: 'ready' }
   | { type: 'open'; id: string; newWindow: boolean }
   | { type: 'terminal'; id: string }
+  | { type: 'runAction'; id: string; actionId: string }
   | { type: 'reveal'; id: string }
   | { type: 'saveProject'; id: string | undefined; patch: ProjectPatch }
   | { type: 'removeProject'; id: string }
   | { type: 'moveProject'; id: string; collectionId: string | undefined; index: number }
-  | { type: 'saveCollection'; id: string | undefined; name: string; color: string | undefined; description: string | undefined }
+  | { type: 'bulkUpdate'; ids: string[]; patch: BulkPatch }
+  | { type: 'bulkRemove'; ids: string[] }
+  | { type: 'saveCollection'; id: string | undefined; name: string; color: string | undefined; description: string | undefined; actions: TileAction[] }
+  | { type: 'saveGlobalActions'; actions: TileAction[] }
   | { type: 'removeCollection'; id: string }
   | { type: 'moveCollection'; id: string; index: number }
   | { type: 'toggleCollection'; id: string; collapsed: boolean }
@@ -70,4 +80,8 @@ export type WebviewToHost =
   | { type: 'refresh'; id?: string }
   | { type: 'addCurrent' }
   | { type: 'addRecent' }
+  | { type: 'addFolders'; collectionId?: string }
+  | { type: 'addSubfolders'; collectionId?: string }
+  /** Folders dropped on the page, as file URIs or plain paths taken from the drag data. */
+  | { type: 'dropFolders'; uris: string[]; collectionId?: string }
   | { type: 'git'; id: string; op: RemoteOperation };

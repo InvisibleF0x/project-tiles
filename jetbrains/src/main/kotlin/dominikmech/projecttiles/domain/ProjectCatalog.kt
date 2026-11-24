@@ -15,23 +15,49 @@ data class ProjectInput(
     val color: String? = null,
     val collectionId: String? = null,
     val show: TileVisibility? = null,
+    val actions: List<TileAction>? = null,
+)
+
+/** One change applied to many projects at once; a false `set…` flag or a null/empty field leaves that field alone. */
+data class BulkPatch(
+    val setCollection: Boolean = false,
+    /** With [setCollection]: null takes the projects out of their collection. */
+    val collectionId: String? = null,
+    val setColor: Boolean = false,
+    /** With [setColor]: null clears the colour. */
+    val color: String? = null,
+    /** "auto" or "none". */
+    val logo: String? = null,
+    /** Per element ("path", "description", "languages", "git"): a value overrides, null goes back to the global setting. */
+    val show: Map<String, Boolean?> = emptyMap(),
+    /** Appended to each project's own buttons. */
+    val addActions: List<TileAction> = emptyList(),
 )
 
 /** In-memory catalog with all ordering and grouping rules; callers persist [snapshot] after mutations. */
 class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
     private var collectionList: MutableList<Collection>
     private var projectList: MutableList<Project>
+    private var actionList: List<TileAction>?
 
     init {
         val normalized = normalize(data ?: CatalogData())
         collectionList = normalized.collections.toMutableList()
         projectList = normalized.projects.toMutableList()
+        actionList = normalized.actions
     }
 
     val projects: List<Project> get() = projectList
     val collections: List<Collection> get() = collectionList
 
-    fun snapshot(): CatalogData = CatalogData(1, collectionList.toList(), projectList.toList())
+    /** Buttons on every tile. */
+    val actions: List<TileAction> get() = actionList.orEmpty()
+
+    fun setActions(actions: List<TileAction>?) {
+        actionList = cleanActions(actions)
+    }
+
+    fun snapshot(): CatalogData = CatalogData(1, collectionList.toList(), projectList.toList(), actionList?.toList())
 
     fun getProject(id: String): Project? = projectList.find { it.id == id }
 
@@ -61,6 +87,35 @@ class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
         return updated
     }
 
+    /** What [patch] turns [project] into; the caller saves it (logos may need files moved). */
+    fun bulkInput(project: Project, patch: BulkPatch): ProjectInput {
+        var input = ProjectInput(
+            project.name, project.path, project.description, project.logo, project.languages,
+            project.color, project.collectionId, project.show, project.actions,
+        )
+        if (patch.setCollection) input = input.copy(collectionId = patch.collectionId?.takeIf { getCollection(it) != null })
+        if (patch.setColor) input = input.copy(color = patch.color)
+        if (patch.logo == Logo.AUTO || patch.logo == Logo.NONE) input = input.copy(logo = Logo(patch.logo))
+        if (patch.show.isNotEmpty()) {
+            var show = project.show ?: TileVisibility()
+            for ((element, value) in patch.show) {
+                show = when (element) {
+                    "path" -> show.copy(path = value)
+                    "description" -> show.copy(description = value)
+                    "languages" -> show.copy(languages = value)
+                    "git" -> show.copy(git = value)
+                    else -> show
+                }
+            }
+            input = input.copy(show = show)
+        }
+        if (patch.addActions.isNotEmpty()) {
+            val own = project.actions.orEmpty()
+            input = input.copy(actions = own + patch.addActions.filter { a -> own.none { it.id == a.id } })
+        }
+        return input
+    }
+
     fun removeProject(id: String): Boolean = projectList.removeIf { it.id == id }
 
     /** Moves a project into [collectionId] (null = no collection) at [index] within that collection's visible order. */
@@ -78,26 +133,18 @@ class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
         return true
     }
 
-    fun addCollection(name: String, color: String? = null, description: String? = null): Collection {
-        val collection = Collection(
-            id = newId(),
-            name = name.trim().ifEmpty { "Collection" },
-            description = description?.trim()?.ifEmpty { null },
-            color = normalizeHexColor(color),
-        )
+    fun addCollection(name: String, color: String? = null, description: String? = null, actions: List<TileAction>? = null): Collection {
+        val collection = cleanCollection(Collection(newId(), name, description, color, null, actions))
         collectionList.add(collection)
         return collection
     }
 
-    fun updateCollection(id: String, name: String?, color: String?, description: String?): Collection? {
+    /** A null [actions] keeps the collection's buttons; an empty list removes them. */
+    fun updateCollection(id: String, name: String?, color: String?, description: String?, actions: List<TileAction>? = null): Collection? {
         val index = collectionList.indexOfFirst { it.id == id }
         if (index < 0) return null
         val current = collectionList[index]
-        val merged = current.copy(
-            name = (name ?: current.name).trim().ifEmpty { "Collection" },
-            color = normalizeHexColor(color),
-            description = description?.trim()?.ifEmpty { null },
-        )
+        val merged = cleanCollection(current.copy(name = name ?: current.name, color = color, description = description, actions = actions ?: current.actions))
         collectionList[index] = merged
         return merged
     }
@@ -134,13 +181,7 @@ class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
             val collections = mutableListOf<Collection>()
             for (c in data.collections) {
                 if (!SAFE_ID.matches(c.id) || collections.any { it.id == c.id }) continue
-                collections += Collection(
-                    id = c.id,
-                    name = c.name.trim().ifEmpty { "Collection" },
-                    description = c.description?.trim()?.ifEmpty { null },
-                    color = normalizeHexColor(c.color),
-                    collapsed = if (c.collapsed == true) true else null,
-                )
+                collections += cleanCollection(c)
             }
             val collectionIds = collections.map { it.id }.toSet()
             val projects = mutableListOf<Project>()
@@ -159,11 +200,21 @@ class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
                         color = p.color,
                         collectionId = p.collectionId?.takeIf { it in collectionIds },
                         show = p.show,
+                        actions = p.actions,
                     ),
                 )
             }
-            return CatalogData(1, collections, projects)
+            return CatalogData(1, collections, projects, cleanActions(data.actions))
         }
+
+        private fun cleanCollection(c: Collection) = Collection(
+            id = c.id,
+            name = c.name.trim().ifEmpty { "Collection" },
+            description = c.description?.trim()?.ifEmpty { null },
+            color = normalizeHexColor(c.color),
+            collapsed = if (c.collapsed == true) true else null,
+            actions = cleanActions(c.actions),
+        )
 
         private fun cleanProject(id: String, raw: ProjectInput): Project {
             val logo = when {
@@ -183,7 +234,22 @@ class ProjectCatalog(data: CatalogData?, private val newId: () -> String) {
                 color = normalizeHexColor(raw.color),
                 collectionId = raw.collectionId?.ifEmpty { null },
                 show = raw.show?.takeUnless { it.isEmpty() },
+                actions = cleanActions(raw.actions),
             )
+        }
+
+        /** Keeps buttons with a safe unique id, a name and a command, trimmed to sane lengths; null when none are left. */
+        fun cleanActions(raw: List<TileAction>?): List<TileAction>? {
+            if (raw == null) return null
+            val actions = mutableListOf<TileAction>()
+            for (a in raw) {
+                if (actions.size >= ACTIONS_MAX) break
+                if (!SAFE_ID.matches(a.id) || actions.any { it.id == a.id }) continue
+                val name = a.name.trim().take(ACTION_NAME_MAX)
+                val command = a.command.trim().take(ACTION_COMMAND_MAX)
+                if (name.isNotEmpty() && command.isNotEmpty()) actions += TileAction(a.id, name, command)
+            }
+            return actions.ifEmpty { null }
         }
 
         fun baseName(path: String): String = path.trimEnd('\\', '/').split('\\', '/').lastOrNull()?.ifEmpty { null } ?: path

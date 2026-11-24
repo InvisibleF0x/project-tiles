@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { Collection, Logo, Project, ProjectMetadata } from '../domain/model';
-import { ProjectCatalog, ProjectInput } from '../domain/ProjectCatalog';
+import { Collection, Logo, Project, ProjectMetadata, TileAction, effectiveActions } from '../domain/model';
+import { BulkPatch, ProjectCatalog, ProjectInput } from '../domain/ProjectCatalog';
 import { CatalogRepository } from '../storage/CatalogRepository';
 import { LogoStore } from './logo/LogoStore';
 import { MetadataService } from './MetadataService';
@@ -82,8 +82,19 @@ export class ProjectService {
     return this.catalog.collections;
   }
 
+  /** Buttons on every tile. */
+  get actions(): readonly TileAction[] {
+    return this.catalog.actions;
+  }
+
   getProject(id: string): Project | undefined {
     return this.catalog.getProject(id);
+  }
+
+  /** The buttons a project's tile shows, in display order. */
+  actionsFor(project: Project): TileAction[] {
+    const collection = project.collectionId ? this.catalog.getCollection(project.collectionId) : undefined;
+    return effectiveActions(this.catalog.actions, collection, project);
   }
 
   findByPath(folder: string): Project | undefined {
@@ -108,11 +119,64 @@ export class ProjectService {
     return saved;
   }
 
-  async removeProject(id: string): Promise<void> {
-    if (this.catalog.removeProject(id)) {
-      await this.logos.remove(id);
+  /** Adds every folder that is not on the dashboard yet; returns how many were added. */
+  async addFolders(folders: readonly string[], collectionId?: string): Promise<number> {
+    const target = collectionId && this.catalog.getCollection(collectionId) ? collectionId : undefined;
+    let added = 0;
+    for (const folder of folders) {
+      if (this.catalog.findProjectByPath(folder)) {
+        continue;
+      }
+      const project = this.catalog.addProject({ name: path.basename(folder), path: folder, logo: { kind: 'auto' }, collectionId: target });
+      this.metadata.invalidate(project.path);
+      added++;
+    }
+    if (added > 0) {
       await this.persist();
     }
+    return added;
+  }
+
+  /** Applies one change to several projects and saves once. */
+  async bulkUpdate(ids: readonly string[], patch: BulkPatch): Promise<void> {
+    let changed = false;
+    for (const id of ids) {
+      const project = this.catalog.getProject(id);
+      if (!project) {
+        continue;
+      }
+      const input = this.catalog.bulkInput(project, patch);
+      const saved = this.catalog.updateProject(id, { ...input, logo: patch.logo ? await this.materializeLogo(id, input.logo) : project.logo })!;
+      if (project.logo?.kind !== saved.logo?.kind || project.show?.git !== saved.show?.git || project.show?.languages !== saved.show?.languages) {
+        this.metadata.invalidate(saved.path);
+      }
+      changed = true;
+    }
+    if (changed) {
+      await this.persist();
+    }
+  }
+
+  async removeProjects(ids: readonly string[]): Promise<void> {
+    let changed = false;
+    for (const id of ids) {
+      if (this.catalog.removeProject(id)) {
+        await this.logos.remove(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.persist();
+    }
+  }
+
+  async removeProject(id: string): Promise<void> {
+    await this.removeProjects([id]);
+  }
+
+  async saveGlobalActions(actions: readonly TileAction[]): Promise<void> {
+    this.catalog.setActions(actions);
+    await this.persist();
   }
 
   async moveProject(id: string, collectionId: string | undefined, index: number): Promise<void> {
@@ -121,11 +185,17 @@ export class ProjectService {
     }
   }
 
-  async saveCollection(id: string | undefined, name: string, color: string | undefined, description: string | undefined): Promise<Collection> {
+  async saveCollection(
+    id: string | undefined,
+    name: string,
+    color: string | undefined,
+    description: string | undefined,
+    actions?: TileAction[],
+  ): Promise<Collection> {
     const existing = id ? this.catalog.getCollection(id) : undefined;
     const saved = existing
-      ? this.catalog.updateCollection(existing.id, { name, color, description })!
-      : this.catalog.addCollection(name, color, description);
+      ? this.catalog.updateCollection(existing.id, { name, color, description, ...(actions ? { actions } : {}) })!
+      : this.catalog.addCollection(name, color, description, actions);
     await this.persist();
     return saved;
   }

@@ -25,6 +25,28 @@ export interface Project {
   collectionId?: string;
   /** Per-tile overrides of the global visibility settings; a missing key follows the global setting. */
   show?: TileVisibility;
+  /** Buttons only this tile has; collection and global ones are added in front of them. */
+  actions?: TileAction[];
+}
+
+/** A button on a tile that runs `command` in the project's folder, in a new terminal. */
+export interface TileAction {
+  id: string;
+  name: string;
+  command: string;
+}
+
+export const ACTION_NAME_MAX = 40;
+export const ACTION_COMMAND_MAX = 2000;
+export const ACTIONS_MAX = 20;
+
+/** Buttons shown on a tile: the ones for every project, then its collection's, then its own. */
+export function effectiveActions(
+  global: readonly TileAction[] | undefined,
+  collection: Pick<Collection, 'actions'> | undefined,
+  project: Pick<Project, 'actions'>,
+): TileAction[] {
+  return [...(global ?? []), ...(collection?.actions ?? []), ...(project.actions ?? [])];
 }
 
 export type TileElement = 'path' | 'description' | 'languages' | 'git';
@@ -92,6 +114,8 @@ export interface Collection {
   /** CSS colour, e.g. "#ff8800". */
   color?: string;
   collapsed?: boolean;
+  /** Buttons on every tile of this collection. */
+  actions?: TileAction[];
 }
 
 export interface CatalogData {
@@ -100,6 +124,8 @@ export interface CatalogData {
   collections: Collection[];
   /** Array order is the display order within each collection. */
   projects: Project[];
+  /** Buttons on every tile. */
+  actions?: TileAction[];
 }
 
 export const emptyCatalog = (): CatalogData => ({ version: 1, collections: [], projects: [] });

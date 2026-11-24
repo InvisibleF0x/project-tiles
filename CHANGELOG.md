@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0 — 2026-11-24
+
+- **Tile buttons**: your own commands next to *Terminal* (e.g. *Build* → `npm run build`). A click runs the
+  command in a new terminal in the project's folder. Buttons can be set for every tile (⚡ in the header),
+  for a collection (its edit form) or for one project (its edit form, or the ⚡ icon on the tile).
+- **Add many projects at once**: *Add folders* takes several folders, *All subfolders of a folder* lists the
+  folders inside one (git repositories ticked), and folders dragged onto the dashboard are added to the
+  collection they are dropped on (in VS Code hold Shift while dropping).
+- **Bulk edit**: tick tiles (Shift+click for a range) to move them to a collection, remove them, or change
+  their colour, logo, visibility and buttons in one go.
+
 ## 1.3.0 — 2026-11-17
 
 - JetBrains: the dashboard opens in the **Home window** of 2026.3 IDEs (and the non-modal welcome screen of
